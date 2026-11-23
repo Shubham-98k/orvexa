@@ -413,9 +413,9 @@ export default function StoriesInMotionHero() {
             }}
             className="w-full max-w-[600px] mb-20 sm:mb-24 bg-white/70 backdrop-blur-md border border-white/75 shadow-[0_20px_50px_rgba(20,20,20,0.1)] rounded-[28px] p-6 sm:p-9 flex flex-col items-center lg:items-start text-center lg:text-left"
           >
-            <span className="text-[11px] sm:text-xs font-semibold tracking-[0.18em] uppercase text-[#2A2827] mb-3.5">
+           {/*  <span className="text-[11px] sm:text-xs font-semibold tracking-[0.18em] uppercase text-[#2A2827] mb-3.5">
               EARLY ACCESS
-            </span>
+            </span> */}
 
             {/* Coral App Icon + Doodle-Morphing "orvexa" Wordmark */}
             <div
