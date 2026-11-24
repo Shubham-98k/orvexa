@@ -3,14 +3,19 @@ import { motion, useTransform } from 'framer-motion';
 import socialCollage from '../assets/social-collage.png';
 
 export function FloatingSocialCollage({ smoothProgress }) {
-  // Subtle parallax drift and fade out as you scroll into the card stories
-  const parallaxY = useTransform(smoothProgress, [0, 0.28], [0, -90]);
-  const parallaxOpacity = useTransform(smoothProgress, [0, 0.24], [1, 0]);
+  const parallaxY = useTransform(smoothProgress, [0, 0.26], [0, -70]);
+  const parallaxScale = useTransform(smoothProgress, [0, 0.26], [1, 1.06]);
+  const parallaxOpacity = useTransform(smoothProgress, [0, 0.08, 0.24], [1, 0.92, 0]);
 
   return (
     <motion.div
-      style={{ y: parallaxY, opacity: parallaxOpacity }}
-      className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-10"
+      style={{
+        y: parallaxY,
+        scale: parallaxScale,
+        opacity: parallaxOpacity,
+        zIndex: 5,
+      }}
+      className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none"
     >
       <img
         src={socialCollage}
