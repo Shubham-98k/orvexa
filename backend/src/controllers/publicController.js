@@ -45,7 +45,7 @@ export const getPublicDiscover = async (req, res, next) => {
 
     const [posts, discussions, knowledge] = await Promise.all([
       Post.find({ status: 'published' })
-        .select('_id authorName authorInitials authorColor title body tags imageUrl likeCount commentsCount createdAt')
+        .select('_id authorName authorInitials authorColor title body tags imageUrl likeCount commentCount commentsCount createdAt')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -84,7 +84,7 @@ export const getPublicDiscover = async (req, res, next) => {
 export const getPublicPostById = async (req, res, next) => {
   try {
     const post = await Post.findOne({ _id: req.params.postId, status: 'published' })
-      .select('_id authorName authorInitials authorColor title body tags imageUrl likeCount commentsCount createdAt')
+      .select('_id authorName authorInitials authorColor title body tags imageUrl likeCount commentCount commentsCount createdAt')
       .lean();
 
     if (!post) {

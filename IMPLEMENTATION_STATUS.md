@@ -86,12 +86,37 @@
 
 ### 6. Count Reconciliation & Feed Alignment
 - Reconciled `votes`, `commentsCount` (persisted contributions), and `contributorsCount` (distinct authors) in `discussionController.js` directly from records.
-- Discover feed tabs (`For you`, `Trending`, `Following`, `Latest`) query distinct database filters. `Following` strictly requires authentication and returns `401 AUTHENTICATION_REQUIRED` for guests.
+- Discover feed tabs (`For you`, `Trending`, `Following`, `Latest`) query distinct database filters across Posts, Discussions, and Knowledge:
+  - `For you`: Ranked algorithmic balance between engagement and freshness.
+  - `Trending`: Sorts by highest engagement (likes, upvotes, saves, comments).
+  - `Following`: Restricts content to followed authors. Guests receive a dedicated sign-in/sign-up gate card, and users with 0 followed authors receive an empty state with a link to discovery.
+  - `Latest`: Chronological descending sorting across all content types.
+- Fixed `User` schema (`followers` and `following` arrays) and `Post` schema (`likes`, `likedBy`, `commentCount`, `commentsCount`) to ensure relationships and interaction counts persist reliably in MongoDB.
+- Synchronized like (`isLiked`/`hasLiked`) and upvote (`voted`/`hasUpvoted`) reactivity between cards and backend endpoints.
 
-### 7. Automated Test Suite
+### 7. Admin & Management Dashboard
+- Resolved role property discrepancy (`user.platformRole` vs `user.role`): both properties are now populated across backend auth responses (`login`, `register`, `getMe`) and verified symmetrically in `LeftSidebar.jsx` and `AdminView.jsx`.
+- Fixed Admin Dashboard real-time stats mapping (`overview.stats.*` and root-level aliases), including `Circle.countDocuments()`.
+- Implemented full platform management in `AdminView`:
+  - **Overview & Metrics**: Live counters, recent audit logs, and platform health.
+  - **User Management**: Member search, role promotion/demotion (`user`, `moderator`, `admin`), and account suspension/activation.
+  - **Moderation Reports**: Interactive queue with Action Report and Dismiss actions writing to `AuditLog`.
+- Protected admin routes with strict `403` role checks on `/api/admin/*`.
+
+### 8. Direct Messaging & Member Communication
+- **Profile Direct Messaging**: Added direct "Message" CTA on user profiles in `ProfileView.jsx` and `PeopleCompaniesView.jsx`. Automatically initiates or resumes 1:1 direct conversations via `/api/conversations`.
+- **Recipient Resolution**: Updated `messageController.js:startConversation` to accept both MongoDB ObjectId and username strings with self-messaging guards.
+- **Unified Inbox Navigation**: Updated `MessagesView.jsx` to respond dynamically to `location.state` and `?user=` search params, and added a "+ New Chat" user search modal to compose direct messages directly from the inbox.
+- **Route Normalization**: Fixed `RightSidebar.jsx` profile links (`/profile/:username`) and People link (`/people-companies`).
+
+### 9. Automated Test Suite
 - Automated test runner at `backend/tests/verifyFixes.test.js` validating:
   1. Guest preview token issuance.
   2. 120-second preview expiry returning `403 GUEST_PREVIEW_EXPIRED`.
   3. Authenticated user exemption.
   4. Rate limiter `429` enforcement and `Retry-After`.
   5. Accurate distinct contributor vs contribution counting.
+  6. Schema definitions for `followers`, `following`, `likes`, `likedBy`, and comment counters.
+  7. Strict `401 AUTHENTICATION_REQUIRED` enforcement for `following` mode on `/posts`, `/discussions`, and `/knowledge`.
+  8. Role-based `403` access control on `/api/admin/overview`.
+  9. Direct conversation validation on `/api/conversations`.

@@ -1,16 +1,34 @@
 import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
+import { User } from '../models/User.js';
 
 export const getDiscussions = async (req, res, next) => {
   try {
-    const { category, sort, status, page = 1, limit = 20 } = req.query;
+    const { category, sort, status, mode, page = 1, limit = 20 } = req.query;
     let query = { status: { $ne: 'removed' } };
     if (category && category !== 'All categories') query.category = category;
     if (status && status !== 'All statuses') query.status = status.toLowerCase().replace(' ', '_');
 
+    // 1. "Following" feed: requires authenticated user and following list
+    if (mode === 'following') {
+      if (!req.user) {
+        return res.status(401).json({
+          error: 'Please log in to view discussions from people you follow.',
+          code: 'AUTHENTICATION_REQUIRED',
+        });
+      }
+      const currentUser = await User.findById(req.user._id);
+      const followingIds = currentUser?.following || [];
+      if (followingIds.length === 0) {
+        return res.json({ discussions: [] });
+      }
+      query.authorId = { $in: followingIds };
+    }
+
     let sortObj = { votes: -1, createdAt: -1 };
-    if (sort === 'Newest' || sort === 'latest') sortObj = { createdAt: -1 };
-    if (sort === 'Most discussed') sortObj = { commentsCount: -1 };
+    if (mode === 'latest' || sort === 'Newest' || sort === 'latest') sortObj = { createdAt: -1 };
+    else if (mode === 'trending' || sort === 'Most discussed') sortObj = { votes: -1, commentsCount: -1, createdAt: -1 };
+    else if (mode === 'for-you' || mode === 'for you') sortObj = { votes: -1, createdAt: -1 };
 
     const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.min(50, parseInt(limit, 10));
 
@@ -21,13 +39,17 @@ export const getDiscussions = async (req, res, next) => {
       .lean();
 
     // Map whether current user has upvoted
-    const mapped = discussions.map((d) => ({
-      ...d,
-      hasUpvoted: req.user ? d.voters?.some((v) => v.toString() === req.user._id.toString()) : false,
-      votes: d.votes || 0,
-      commentsCount: d.commentsCount || 0,
-      contributorsCount: d.contributorsCount || 0,
-    }));
+    const mapped = discussions.map((d) => {
+      const hasUpvoted = req.user ? Boolean(d.voters?.some((v) => v.toString() === req.user._id.toString())) : false;
+      return {
+        ...d,
+        hasUpvoted,
+        voted: hasUpvoted,
+        votes: d.votes || 0,
+        commentsCount: d.commentsCount || 0,
+        contributorsCount: d.contributorsCount || 0,
+      };
+    });
 
     res.json({ discussions: mapped });
   } catch (err) {
@@ -127,7 +149,7 @@ export const upvoteDiscussion = async (req, res, next) => {
     }
 
     await discussion.save();
-    res.json({ votes: discussion.votes, hasUpvoted });
+    res.json({ votes: discussion.votes, hasUpvoted, voted: hasUpvoted });
   } catch (err) {
     next(err);
   }

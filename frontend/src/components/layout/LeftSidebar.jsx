@@ -97,7 +97,7 @@ export default function LeftSidebar({ onOpenCreate }) {
             <span>My Profile</span>
           </NavLink>
 
-          {user?.role === 'admin' && (
+          {(user?.role === 'admin' || user?.platformRole === 'admin') && (
             <NavLink to="/admin" className={navLinkClass}>
               <ShieldAlert className="w-4 h-4 stroke-[2.2] text-[#c65d59]" />
               <span className="text-[#c65d59]">Admin</span>

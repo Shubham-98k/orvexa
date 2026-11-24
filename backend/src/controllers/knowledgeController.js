@@ -1,14 +1,33 @@
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 import { Save } from '../models/Notification.js';
+import { User } from '../models/User.js';
 
 export const getKnowledgeArticles = async (req, res, next) => {
   try {
-    const { category, sort } = req.query;
+    const { category, sort, mode } = req.query;
     let query = { status: 'published' };
     if (category && category !== 'All topics') query.category = category;
 
+    // 1. "Following" feed: requires authenticated user and following list
+    if (mode === 'following') {
+      if (!req.user) {
+        return res.status(401).json({
+          error: 'Please log in to view knowledge articles from people you follow.',
+          code: 'AUTHENTICATION_REQUIRED',
+        });
+      }
+      const currentUser = await User.findById(req.user._id);
+      const followingIds = currentUser?.following || [];
+      if (followingIds.length === 0) {
+        return res.json({ articles: [] });
+      }
+      query.authorId = { $in: followingIds };
+    }
+
     let sortObj = { createdAt: -1 };
-    if (sort === 'Most saved') sortObj = { savesCount: -1 };
+    if (mode === 'trending' || sort === 'Most saved') sortObj = { savesCount: -1, helpfulCount: -1, createdAt: -1 };
+    else if (mode === 'for-you' || mode === 'for you') sortObj = { savesCount: -1, createdAt: -1 };
+    else if (mode === 'latest') sortObj = { createdAt: -1 };
 
     const articles = await KnowledgeArticle.find(query).sort(sortObj);
     res.json({ articles });

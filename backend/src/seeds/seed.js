@@ -123,6 +123,14 @@ export const seedDatabase = async () => {
     const chloe = users[5];
     const rahul = users[6];
 
+    // Establish initial following relationships for default user
+    shubham.following = [jamie._id, alicia._id, devon._id];
+    shubham.followingCount = 3;
+    jamie.followers = [shubham._id];
+    alicia.followers = [shubham._id];
+    devon.followers = [shubham._id];
+    await Promise.all([shubham.save(), jamie.save(), alicia.save(), devon.save()]);
+
     // 2. Create Circles
     const circles = await Circle.create([
       {
@@ -183,7 +191,10 @@ export const seedDatabase = async () => {
         body: 'I’ve been thinking about how much of remote work is really about the small moments between meetings. A quick check-in, sharing a half-formed thought, or just knowing who’s around can make a huge difference.',
         tags: ['#FutureOfWork', '#RemoteTeams'],
         likeCount: 86,
+        likes: [shubham._id],
+        likedBy: [shubham._id],
         commentCount: 18,
+        commentsCount: 18,
       },
       {
         authorId: alicia._id,
@@ -193,7 +204,10 @@ export const seedDatabase = async () => {
         body: 'A question for the community: what’s one thing you wish you had learned earlier about giving and receiving feedback?',
         tags: ['#UX', '#Growth'],
         likeCount: 54,
+        likes: [],
+        likedBy: [],
         commentCount: 22,
+        commentsCount: 22,
       },
       {
         authorId: chloe._id,
@@ -204,7 +218,10 @@ export const seedDatabase = async () => {
         body: 'The best meetings are the ones that make the next step obvious. A small reminder that clarity is often more valuable than another status update.',
         tags: ['#Productivity', '#Leadership'],
         likeCount: 92,
+        likes: [],
+        likedBy: [],
         commentCount: 12,
+        commentsCount: 12,
       },
       {
         authorId: devon._id,
@@ -215,7 +232,10 @@ export const seedDatabase = async () => {
         body: 'Curiosity is a better starting point than certainty. Especially when you’re trying to solve something with people who see it differently.',
         tags: ['#Collaboration', '#Thinking'],
         likeCount: 68,
+        likes: [],
+        likedBy: [],
         commentCount: 15,
+        commentsCount: 15,
       },
     ]);
 
