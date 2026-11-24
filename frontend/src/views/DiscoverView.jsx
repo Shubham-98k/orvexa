@@ -19,6 +19,7 @@ export default function DiscoverView() {
 
   const [feedItems, setFeedItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [authRequired, setAuthRequired] = useState(false);
 
   // Discussion modal
@@ -28,62 +29,30 @@ export default function DiscoverView() {
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    setError(null);
     setAuthRequired(false);
 
     const modeParam = activeTab.toLowerCase().replace(' ', '-');
 
     if (activeTab === 'Following' && !user) {
-      setPosts([]);
-      setDiscussions([]);
-      setKnowledge([]);
+      setFeedItems([]);
       setAuthRequired(true);
       setLoading(false);
       return;
     }
 
-    Promise.allSettled([
-      apiGet(`/posts?mode=${modeParam}`),
-      apiGet(`/discussions?mode=${modeParam}`),
-      apiGet(`/knowledge?mode=${modeParam}`),
-    ])
-      .then(([postsRes, discRes, knowRes]) => {
+    apiGet(`/feed?filter=${modeParam}&page=1&limit=50`)
+      .then((res) => {
         if (!isMounted) return;
-
-        let needsAuth = false;
-
-        if (postsRes.status === 'fulfilled') {
-          setPosts(postsRes.value?.posts || []);
-        } else {
-          if (postsRes.reason?.status === 401 || postsRes.reason?.code === 'AUTHENTICATION_REQUIRED') {
-            needsAuth = true;
-          }
-          setPosts([]);
-        }
-
-        if (discRes.status === 'fulfilled') {
-          setDiscussions(discRes.value?.discussions || []);
-        } else {
-          if (discRes.reason?.status === 401 || discRes.reason?.code === 'AUTHENTICATION_REQUIRED') {
-            needsAuth = true;
-          }
-          setDiscussions([]);
-        }
-
-        if (knowRes.status === 'fulfilled') {
-          setKnowledge(knowRes.value?.articles || []);
-        } else {
-          if (knowRes.reason?.status === 401 || knowRes.reason?.code === 'AUTHENTICATION_REQUIRED') {
-            needsAuth = true;
-          }
-          setKnowledge([]);
-        }
-
-        if (needsAuth && activeTab === 'Following') {
-          setAuthRequired(true);
-        }
+        setFeedItems(res?.items || []);
       })
       .catch((err) => {
-        setError(err.message || 'Failed to load feed');
+        if (!isMounted) return;
+        if (err.status === 401 || err.code === 'AUTHENTICATION_REQUIRED') {
+          setAuthRequired(true);
+        } else {
+          setError(err.message || 'Failed to load feed');
+        }
         setFeedItems([]);
       })
       .finally(() => {
@@ -94,24 +63,6 @@ export default function DiscoverView() {
       isMounted = false;
     };
   }, [activeTab, user]);
-
-  // Load more pagination handler
-  const handleLoadMore = () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-
-    const nextPage = page + 1;
-    const filterParam = activeTab.toLowerCase().replace(' ', '-');
-    apiGet(`/feed?filter=${filterParam}&page=${nextPage}&limit=15`)
-      .then((res) => {
-        const newItems = res?.items || [];
-        setFeedItems((prev) => [...prev, ...newItems]);
-        setPage(nextPage);
-        setHasMore(Boolean(res?.hasMore));
-      })
-      .catch(() => {})
-      .finally(() => setLoadingMore(false));
-  };
 
   // Content type & search filter
   const filteredItems = feedItems.filter((item) => {
@@ -134,20 +85,10 @@ export default function DiscoverView() {
 
   // Interleave and sort feed items according to the active tab and filters
   const combinedFeed = useMemo(() => {
-    const pItems =
-      contentTypeFilter === 'All' || contentTypeFilter === 'Posts'
-        ? filteredPosts.map((p) => ({ ...p, feedItemType: 'post' }))
-        : [];
-    const dItems =
-      contentTypeFilter === 'All' || contentTypeFilter === 'Discussions'
-        ? filteredDiscussions.map((d) => ({ ...d, feedItemType: 'discussion' }))
-        : [];
-    const kItems =
-      contentTypeFilter === 'All' || contentTypeFilter === 'Knowledge'
-        ? filteredKnowledge.map((k) => ({ ...k, feedItemType: 'knowledge' }))
-        : [];
-
-    const combined = [...pItems, ...dItems, ...kItems];
+    const combined = filteredItems.map((item) => ({
+      ...item,
+      feedItemType: item.type,
+    }));
 
     if (activeTab === 'Latest') {
       return combined.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -170,7 +111,7 @@ export default function DiscoverView() {
       };
       return combined.sort((a, b) => getScore(b) - getScore(a));
     }
-  }, [filteredPosts, filteredDiscussions, filteredKnowledge, contentTypeFilter, activeTab]);
+  }, [filteredItems, contentTypeFilter, activeTab]);
 
   return (
     <div className="space-y-6">
@@ -237,32 +178,6 @@ export default function DiscoverView() {
           ))}
         </div>
 
-        {/* Content Type Filter */}
-        <select
-          value={contentTypeFilter}
-          onChange={(e) => setContentTypeFilter(e.target.value)}
-          className="px-3 py-2.5 rounded-xl border border-[#e9e9ed] bg-white text-xs text-[#4a5265] focus:outline-none cursor-pointer"
-        >
-          <option value="All">All content</option>
-          <option value="Posts">Posts only</option>
-          <option value="Discussions">Discussions only</option>
-          <option value="Knowledge">Knowledge only</option>
-        </select>
-
-        {/* Topic Filter */}
-        <select
-          value={selectedTopic}
-          onChange={(e) => setSelectedTopic(e.target.value)}
-          className="px-3 py-2.5 rounded-xl border border-[#e9e9ed] bg-white text-xs text-[#4a5265] focus:outline-none cursor-pointer"
-        >
-          <option>All topics</option>
-          <option>Culture</option>
-          <option>Technology</option>
-          <option>UX</option>
-          <option>Engineering</option>
-          <option>Learning</option>
-          <option>Work & Culture</option>
-        </select>
       </div>
 
       {/* Inline Post Composer */}
@@ -286,30 +201,22 @@ export default function DiscoverView() {
         </div>
       )}
 
-      {/* Feed Stream */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
-          <div className="w-8 h-8 border-3 border-[#3f5ce8] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-[#737b8d] font-semibold">Loading feed...</span>
-        </div>
-      ) : error ? (
-        <div className="bg-white border border-[#e9e9ed] rounded-3xl p-10 text-center space-y-3">
-          <span className="text-3xl">⚠️</span>
-          <p className="text-sm font-bold text-[#17213f]">Could not load feed</p>
-          <p className="text-xs text-[#737b8d] max-w-sm mx-auto">{error}</p>
-          <button
-            onClick={() => setActiveTab((t) => t)}
-            className="mt-2 bg-[#f7f7f8] hover:bg-[#ececf0] text-[#17213f] text-xs font-bold px-4 py-2 rounded-xl border border-[#e9e9ed]"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-
       {/* Feed List */}
       <div className="space-y-4">
         {loading ? (
           <div className="py-12 text-center text-xs text-[#8b92a1]">Loading feed items...</div>
+        ) : error ? (
+          <div className="bg-white border border-[#e9e9ed] rounded-3xl p-10 text-center space-y-3">
+            <span className="text-3xl">⚠️</span>
+            <p className="text-sm font-bold text-[#17213f]">Could not load feed</p>
+            <p className="text-xs text-[#737b8d] max-w-sm mx-auto">{error}</p>
+            <button
+              onClick={() => setActiveTab((tab) => tab)}
+              className="mt-2 bg-[#f7f7f8] hover:bg-[#ececf0] text-[#17213f] text-xs font-bold px-4 py-2 rounded-xl border border-[#e9e9ed]"
+            >
+              Retry
+            </button>
+          </div>
         ) : authRequired ? (
           <div className="bg-white border border-[#e9e9ed] rounded-2xl p-8 text-center space-y-4 max-w-lg mx-auto shadow-xs">
             <div className="w-12 h-12 rounded-full bg-[#fff0ee] text-[#e66c68] flex items-center justify-center text-xl font-bold mx-auto">
