@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { Search, Sparkles, Users, Compass } from 'lucide-react';
 import PostCard from '../components/discover/PostCard';
@@ -24,6 +24,11 @@ export default function DiscoverView() {
 
   // Discussion modal
   const [activeDiscussion, setActiveDiscussion] = useState(null);
+  const handleDiscussionUpdate = useCallback((updatedDiscussion) => {
+    setFeedItems((items) => items.map((item) => (
+      item._id === updatedDiscussion._id ? { ...item, ...updatedDiscussion } : item
+    )));
+  }, []);
 
   // Fetch feed when activeTab changes
   useEffect(() => {
@@ -294,6 +299,7 @@ export default function DiscoverView() {
         <DiscussionDetailModal
           discussion={activeDiscussion}
           onClose={() => setActiveDiscussion(null)}
+          onDiscussionUpdate={handleDiscussionUpdate}
           onOpenAiStudio={() => {
             showToast('Knowledge studio opened for discussion');
           }}

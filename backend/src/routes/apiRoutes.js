@@ -72,6 +72,8 @@ router.get('/discussions/:discussionId', optionalAuth, requireGuestPreviewOrAuth
 router.post('/discussions', requireAuth, discCtrl.createDiscussion);
 router.post('/discussions/:discussionId/upvote', requireAuth, discCtrl.upvoteDiscussion);
 router.post('/discussions/:discussionId/contributions', requireAuth, discCtrl.addContribution);
+router.patch('/discussions/:discussionId/contributions/:contributionId', requireAuth, discCtrl.updateContribution);
+router.delete('/discussions/:discussionId/contributions/:contributionId', requireAuth, discCtrl.deleteContribution);
 
 // ==========================================
 // 7. KNOWLEDGE

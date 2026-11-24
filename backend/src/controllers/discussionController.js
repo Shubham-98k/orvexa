@@ -11,7 +11,7 @@ export async function reconcileDiscussionCounts(discussionId) {
   const contributions = await DiscussionContribution.find({
     discussionId,
     status: 'active',
-  }).select('authorId authorName');
+  }).select('authorId authorName authorInitials authorColor body createdAt');
 
   const contributionCount = contributions.length;
   const distinctContributors = new Set(
@@ -232,6 +232,61 @@ export const addContribution = async (req, res, next) => {
       contributorCount: stats.contributorCount,
       commentsCount: stats.contributionCount,
       contributorsCount: stats.contributorCount,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateContribution = async (req, res, next) => {
+  try {
+    const { discussionId, contributionId } = req.params;
+    const body = req.body?.body;
+
+    if (typeof body !== 'string' || !body.trim()) {
+      return res.status(400).json({ error: 'Contribution text is required' });
+    }
+
+    const contribution = await DiscussionContribution.findOne({
+      _id: contributionId,
+      discussionId,
+      status: 'active',
+    });
+    if (!contribution) return res.status(404).json({ error: 'Contribution not found' });
+    if (contribution.authorId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only edit your own contributions' });
+    }
+
+    contribution.body = body.trim();
+    await contribution.save();
+
+    res.json({ contribution });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteContribution = async (req, res, next) => {
+  try {
+    const { discussionId, contributionId } = req.params;
+    const contribution = await DiscussionContribution.findOne({
+      _id: contributionId,
+      discussionId,
+      status: 'active',
+    });
+    if (!contribution) return res.status(404).json({ error: 'Contribution not found' });
+    if (contribution.authorId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only delete your own contributions' });
+    }
+
+    contribution.status = 'removed';
+    await contribution.save();
+
+    const stats = await reconcileDiscussionCounts(discussionId);
+    res.json({
+      success: true,
+      contributionCount: stats.contributionCount,
+      contributorCount: stats.contributorCount,
     });
   } catch (err) {
     next(err);

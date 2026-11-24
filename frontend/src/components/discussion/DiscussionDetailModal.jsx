@@ -1,16 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { X, Bot, Send } from 'lucide-react';
+import { X, Bot, Send, Pencil, Trash2, Flag, Check, XCircle } from 'lucide-react';
 import Avatar from '../common/Avatar';
-import { apiGet, apiPost } from '../../api/client';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import ReportModal from '../common/ReportModal';
 
-export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStudio }) {
+const getId = (value) => value?._id || value?.id || value;
+
+const isSameUser = (author, user) => {
+  const authorId = getId(author);
+  const userId = getId(user);
+  return authorId != null && userId != null && String(authorId) === String(userId);
+};
+
+export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStudio, onDiscussionUpdate }) {
   const { user } = useAuth();
   const [discussionData, setDiscussionData] = useState(discussion);
   const [contributions, setContributions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inputBody, setInputBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editingContributionId, setEditingContributionId] = useState(null);
+  const [editBody, setEditBody] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingContributionId, setDeletingContributionId] = useState(null);
+  const [reportingContributionId, setReportingContributionId] = useState(null);
   const [votes, setVotes] = useState(
     discussion.voteCount !== undefined ? discussion.voteCount : (discussion.votes || 0)
   );
@@ -23,6 +37,7 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
         .then((res) => {
           if (res?.discussion) {
             setDiscussionData(res.discussion);
+            onDiscussionUpdate?.(res.discussion);
             const vCount = res.discussion.voteCount !== undefined ? res.discussion.voteCount : res.discussion.votes;
             setVotes(vCount);
             setVoted(Boolean(res.discussion.hasUpvoted || res.discussion.viewerVote === 1));
@@ -34,14 +49,24 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
         .catch(() => {})
         .finally(() => setLoading(false));
     }
-  }, [discussion]);
+  }, [discussion, onDiscussionUpdate]);
 
   const handleUpvote = async () => {
     try {
       const res = await apiPost(`/discussions/${discussion._id}/upvote`, {});
       const newVotes = res.voteCount !== undefined ? res.voteCount : res.votes;
+      const hasUpvoted = Boolean(res.hasUpvoted || res.viewerVote === 1);
+      const updatedDiscussion = {
+        ...discussionData,
+        votes: newVotes,
+        voteCount: newVotes,
+        hasUpvoted,
+        viewerVote: hasUpvoted ? 1 : 0,
+      };
       setVotes(newVotes);
-      setVoted(Boolean(res.hasUpvoted || res.viewerVote === 1));
+      setVoted(hasUpvoted);
+      setDiscussionData(updatedDiscussion);
+      onDiscussionUpdate?.(updatedDiscussion);
     } catch {
       // rollback or handle error
     }
@@ -59,16 +84,65 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
       if (res?.contribution) {
         setContributions((prev) => [...prev, res.contribution]);
         setInputBody('');
-        setDiscussionData((prev) => ({
-          ...prev,
-          contributionCount: res.contributionCount || res.commentsCount || (prev.contributionCount + 1),
-          contributorCount: res.contributorCount || res.contributorsCount || prev.contributorCount,
-        }));
+        const updatedDiscussion = {
+          ...discussionData,
+          contributionCount: res.contributionCount ?? res.commentsCount ?? discussionData.contributionCount + 1,
+          contributorCount: res.contributorCount ?? res.contributorsCount ?? discussionData.contributorCount,
+        };
+        setDiscussionData(updatedDiscussion);
+        onDiscussionUpdate?.(updatedDiscussion);
       }
     } catch (err) {
       alert(err.message || 'Unable to post contribution.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleUpdateContribution = async (e, contributionId) => {
+    e.preventDefault();
+    if (!editBody.trim()) return;
+
+    try {
+      setSavingEdit(true);
+      const res = await apiPatch(
+        `/discussions/${discussion._id}/contributions/${contributionId}`,
+        { body: editBody.trim() }
+      );
+      if (res?.contribution) {
+        setContributions((prev) => prev.map((contribution) => (
+          contribution._id === contributionId ? res.contribution : contribution
+        )));
+        setEditingContributionId(null);
+        setEditBody('');
+      }
+    } catch (err) {
+      alert(err.message || 'Unable to edit contribution.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteContribution = async (contributionId) => {
+    if (!window.confirm('Delete this contribution?')) return;
+
+    try {
+      setDeletingContributionId(contributionId);
+      const res = await apiDelete(
+        `/discussions/${discussion._id}/contributions/${contributionId}`
+      );
+      setContributions((prev) => prev.filter((contribution) => contribution._id !== contributionId));
+      const updatedDiscussion = {
+        ...discussionData,
+        contributionCount: res.contributionCount ?? Math.max(0, contributions.length - 1),
+        contributorCount: res.contributorCount ?? discussionData.contributorCount,
+      };
+      setDiscussionData(updatedDiscussion);
+      onDiscussionUpdate?.(updatedDiscussion);
+    } catch (err) {
+      alert(err.message || 'Unable to delete contribution.');
+    } finally {
+      setDeletingContributionId(null);
     }
   };
 
@@ -169,7 +243,77 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
                     {new Date(c.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <p className="text-xs text-[#38425b] leading-relaxed whitespace-pre-line">{c.body}</p>
+                {isSameUser(c.authorId, user) ? (
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingContributionId(c._id);
+                        setEditBody(c.body);
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#737b8d] hover:text-[#3f5ce8]"
+                      aria-label="Edit contribution"
+                    >
+                      <Pencil className="h-3 w-3" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteContribution(c._id)}
+                      disabled={deletingContributionId === c._id}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#c65d59] hover:text-red-700 disabled:opacity-50"
+                      aria-label="Delete contribution"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      {deletingContributionId === c._id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                ) : (
+                  user && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setReportingContributionId(c._id)}
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#737b8d] hover:text-[#c65d59]"
+                        aria-label="Report contribution"
+                      >
+                        <Flag className="h-3 w-3" /> Report
+                      </button>
+                    </div>
+                  )
+                )}
+                {editingContributionId === c._id ? (
+                  <form onSubmit={(e) => handleUpdateContribution(e, c._id)} className="space-y-2">
+                    <textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      rows={3}
+                      required
+                      autoFocus
+                      className="w-full px-3 py-2 rounded-lg border border-[#e9e9ed] text-xs focus:outline-none focus:border-[#3f5ce8]"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingContributionId(null);
+                          setEditBody('');
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-[#737b8d] hover:bg-[#f0f0f4]"
+                      >
+                        <XCircle className="h-3 w-3" /> Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingEdit || !editBody.trim()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white bg-[#3f5ce8] hover:bg-[#324ecc] disabled:opacity-60"
+                      >
+                        <Check className="h-3 w-3" /> {savingEdit ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <p className="text-xs text-[#38425b] leading-relaxed whitespace-pre-line">{c.body}</p>
+                )}
               </div>
             ))
           )}
@@ -195,6 +339,13 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
           </form>
         </div>
       </div>
+      {reportingContributionId && (
+        <ReportModal
+          targetType="contribution"
+          targetId={reportingContributionId}
+          onClose={() => setReportingContributionId(null)}
+        />
+      )}
     </div>
   );
 }

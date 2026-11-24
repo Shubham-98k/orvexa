@@ -4,6 +4,8 @@ import { Post } from '../models/Post.js';
 import { Discussion } from '../models/Discussion.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 import { Circle } from '../models/Circle.js';
+import { DiscussionContribution } from '../models/DiscussionContribution.js';
+import mongoose from 'mongoose';
 
 export const getAdminOverview = async (req, res, next) => {
   try {
@@ -206,12 +208,42 @@ export const updateReport = async (req, res, next) => {
 export const submitReport = async (req, res, next) => {
   try {
     const { targetType, targetId, reason, details } = req.body;
+    const targetModels = new Map([
+      ['post', Post],
+      ['discussion', Discussion],
+      ['contribution', DiscussionContribution],
+      ['knowledge', KnowledgeArticle],
+      ['circle', Circle],
+      ['user', User],
+    ]);
+    const TargetModel = targetModels.get(targetType);
+
+    if (!TargetModel || !mongoose.Types.ObjectId.isValid(targetId)) {
+      return res.status(400).json({ error: 'Invalid report target' });
+    }
+    if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 100) {
+      return res.status(400).json({ error: 'A valid report reason is required' });
+    }
+    if (details !== undefined && (typeof details !== 'string' || details.length > 1000)) {
+      return res.status(400).json({ error: 'Report details must be 1000 characters or fewer' });
+    }
+
+    const target = await TargetModel.findById(targetId);
+    if (!target) return res.status(404).json({ error: 'Report target not found' });
+
+    if (
+      ['post', 'discussion', 'contribution', 'knowledge'].includes(targetType) &&
+      target.authorId?.toString() === req.user._id.toString()
+    ) {
+      return res.status(400).json({ error: 'You cannot report your own content' });
+    }
+
     const report = await Report.create({
       reporterId: req.user._id,
       targetType,
-      targetId,
-      reason,
-      details: details || '',
+      targetId: target._id,
+      reason: reason.trim(),
+      details: details?.trim() || '',
     });
     res.status(201).json({ report, message: 'Report submitted for moderation review' });
   } catch (err) {
