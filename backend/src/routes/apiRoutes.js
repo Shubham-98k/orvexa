@@ -15,13 +15,18 @@ import * as searchCtrl from '../controllers/searchController.js';
 import * as adminCtrl from '../controllers/adminController.js';
 import * as aiCtrl from '../controllers/aiController.js';
 import * as userCtrl from '../controllers/userController.js';
-import * as companyCtrl from '../controllers/companyController.js';
 import * as publicCtrl from '../controllers/publicController.js';
+import * as feedCtrl from '../controllers/feedController.js';
 
 const router = express.Router();
 
 // ==========================================
-// 1. PUBLIC READ-ONLY PREVIEW APIS (120s limit + rate limited)
+// 1. UNIFIED FEED (For you, Trending, Following, Latest)
+// ==========================================
+router.get('/feed', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, feedCtrl.getUnifiedFeed);
+
+// ==========================================
+// 2. PUBLIC READ-ONLY PREVIEW APIS (120s limit + rate limited)
 // ==========================================
 router.get('/public/session/preview-token', publicCtrl.getPreviewSession);
 router.get('/public/discover', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicDiscover);
@@ -29,11 +34,10 @@ router.get('/public/posts/:postId', optionalAuth, requireGuestPreviewOrAuth, pub
 router.get('/public/discussions/:discussionId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicDiscussionById);
 router.get('/public/knowledge/:articleId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicKnowledgeById);
 router.get('/public/users/:username', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicUserByUsername);
-router.get('/public/companies/:slug', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicCompanyBySlug);
 router.get('/public/circles/:slugOrId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicCircle);
 
 // ==========================================
-// 2. AUTHENTICATION LIFECYCLE
+// 3. AUTHENTICATION LIFECYCLE
 // ==========================================
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/login', authCtrl.login);
@@ -44,20 +48,13 @@ router.post('/auth/reset-password', authCtrl.resetPassword);
 router.post('/auth/verify-email', authCtrl.verifyEmail);
 
 // ==========================================
-// 3. USERS & PROFILES (Target profile vs own profile)
+// 4. USERS & PROFILES (People discovery, target profile vs own profile)
 // ==========================================
 router.get('/users/me', requireAuth, userCtrl.getMe);
 router.patch('/users/me', requireAuth, userCtrl.updateProfile);
 router.get('/users/:username', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, userCtrl.getUserByUsername);
 router.post('/users/:userId/follow', requireAuth, userCtrl.toggleFollowUser);
 router.get('/users', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateLimiter, userCtrl.searchUsers);
-
-// ==========================================
-// 4. COMPANIES (Discovery, profile, follow)
-// ==========================================
-router.get('/companies', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateLimiter, companyCtrl.getCompanies);
-router.get('/companies/:slug', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, companyCtrl.getCompanyBySlug);
-router.post('/companies/:companyId/follow', requireAuth, companyCtrl.toggleFollowCompany);
 
 // ==========================================
 // 5. POSTS

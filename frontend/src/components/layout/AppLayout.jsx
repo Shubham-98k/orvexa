@@ -55,7 +55,6 @@ export default function AppLayout() {
         {/* Right Sidebar */}
         <RightSidebar
           onOpenCreateIdea={() => handleOpenCreate('Discussion')}
-          onSelectTopic={(topic) => showToast(`Filtering by ${topic}`)}
         />
       </div>
 

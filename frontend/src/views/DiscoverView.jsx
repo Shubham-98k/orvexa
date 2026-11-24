@@ -13,20 +13,18 @@ export default function DiscoverView() {
   const { onOpenCreate, showToast } = useOutletContext();
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('For you');
-  const [contentTypeFilter, setContentTypeFilter] = useState('All');
-  const [selectedTopic, setSelectedTopic] = useState('All topics');
+  const [activeTab, setActiveTab] = useState('For you'); // 'For you' | 'Trending' | 'Following' | 'Latest'
+  const [contentTypeFilter, setContentTypeFilter] = useState('All'); // 'All' | 'Posts' | 'Discussions' | 'Knowledge'
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [posts, setPosts] = useState([]);
-  const [discussions, setDiscussions] = useState([]);
-  const [knowledge, setKnowledge] = useState([]);
+  const [feedItems, setFeedItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [authRequired, setAuthRequired] = useState(false);
 
   // Discussion modal
   const [activeDiscussion, setActiveDiscussion] = useState(null);
 
+  // Fetch feed when activeTab changes
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
@@ -85,7 +83,8 @@ export default function DiscoverView() {
         }
       })
       .catch((err) => {
-        console.warn('[DiscoverView] Error fetching feed:', err.message);
+        setError(err.message || 'Failed to load feed');
+        setFeedItems([]);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -96,22 +95,40 @@ export default function DiscoverView() {
     };
   }, [activeTab, user]);
 
-  // Combined and filtered items
-  const filteredPosts = posts.filter((p) => {
-    if (selectedTopic !== 'All topics' && !p.tags?.some((t) => t.includes(selectedTopic))) return false;
-    if (searchQuery && !p.body?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  // Load more pagination handler
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
 
-  const filteredDiscussions = discussions.filter((d) => {
-    if (selectedTopic !== 'All topics' && d.category !== selectedTopic) return false;
-    if (searchQuery && !d.title?.toLowerCase().includes(searchQuery.toLowerCase()) && !d.body?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+    const nextPage = page + 1;
+    const filterParam = activeTab.toLowerCase().replace(' ', '-');
+    apiGet(`/feed?filter=${filterParam}&page=${nextPage}&limit=15`)
+      .then((res) => {
+        const newItems = res?.items || [];
+        setFeedItems((prev) => [...prev, ...newItems]);
+        setPage(nextPage);
+        setHasMore(Boolean(res?.hasMore));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  };
 
-  const filteredKnowledge = knowledge.filter((k) => {
-    if (selectedTopic !== 'All topics' && k.category !== selectedTopic) return false;
-    if (searchQuery && !k.title?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+  // Content type & search filter
+  const filteredItems = feedItems.filter((item) => {
+    // 1. Content type filter
+    if (contentTypeFilter === 'Posts' && item.type !== 'post') return false;
+    if (contentTypeFilter === 'Discussions' && item.type !== 'discussion') return false;
+    if (contentTypeFilter === 'Knowledge' && item.type !== 'knowledge') return false;
+
+    // 2. Search query filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const titleMatch = item.title?.toLowerCase().includes(q);
+      const bodyMatch = item.body?.toLowerCase().includes(q) || item.excerpt?.toLowerCase().includes(q);
+      const authorMatch = item.authorName?.toLowerCase().includes(q);
+      if (!titleMatch && !bodyMatch && !authorMatch) return false;
+    }
+
     return true;
   });
 
@@ -166,59 +183,58 @@ export default function DiscoverView() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-1.2px] text-[#17213f] leading-tight">
             Discover what's possible
           </h1>
-          <p className="text-xs sm:text-[13.5px] text-[#737b8d] mt-1">
-            Explore conversations, discussions, and knowledge worth your attention.
+          <p className="text-xs sm:text-[13px] text-[#737b8d] mt-1 font-medium">
+            Explore thoughts, open inquiries, and deep frameworks curated for builders and thinkers.
           </p>
         </div>
-      </div>
 
-      {/* Feature Spotlight */}
-      <section className="bg-[#e96f68] text-white p-6 sm:p-7 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-[0_5px_15px_rgba(233,111,104,0.18)]">
-        <div className="space-y-2 max-w-xl">
-          <span className="inline-block bg-white/25 text-white text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded">
-            COMMUNITY SPOTLIGHT
-          </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-            Small questions can spark big discoveries.
-          </h2>
-          <p className="text-xs sm:text-sm text-[#fff1ef] leading-relaxed">
-            Find a discussion worth exploring, add your perspective, or discover something new to learn.
-          </p>
-          <button
-            onClick={() => onOpenCreate('Discussion')}
-            className="mt-2 bg-[#27334f] text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-[#1a2336] transition-colors cursor-pointer"
-          >
-            Start a discussion →
-          </button>
-        </div>
-      </section>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-[#e9e9ed] text-xs font-bold text-[#777f90]">
-        {['For you', 'Trending', 'Following', 'Latest'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-3 border-b-2 transition-colors cursor-pointer ${
-              activeTab === tab ? 'border-[#e66c68] text-[#e66c68]' : 'border-transparent hover:text-[#17213f]'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Toolbar: Search & Content Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 text-[#8b92a1] absolute left-3.5 top-1/2 -translate-y-1/2" />
+        {/* Search */}
+        <div className="relative min-w-[240px] sm:w-72">
+          <Search className="w-4 h-4 text-[#737b8d] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
+            placeholder="Search content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search posts, discussions, knowledge..."
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#e9e9ed] bg-white text-xs text-[#17213f] focus:outline-none focus:border-[#3f5ce8]"
+            className="w-full bg-[#f7f7f8] border border-[#e9e9ed] rounded-2xl pl-10 pr-4 py-2.5 text-xs text-[#17213f] focus:outline-none focus:ring-2 focus:ring-[#3f5ce8]"
           />
+        </div>
+      </div>
+
+      {/* Feed Tabs & Content Type Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
+        {/* The 4 distinct server-backed query tabs */}
+        <div className="flex bg-[#f7f7f8] p-1 rounded-2xl border border-[#e9e9ed] overflow-x-auto">
+          {['For you', 'Trending', 'Following', 'Latest'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === tab
+                  ? 'bg-white text-[#17213f] shadow-xs'
+                  : 'text-[#737b8d] hover:text-[#17213f]'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Content-type selector */}
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+          {['All', 'Posts', 'Discussions', 'Knowledge'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setContentTypeFilter(type)}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                contentTypeFilter === type
+                  ? 'bg-[#17213f] text-white'
+                  : 'bg-[#f7f7f8] text-[#737b8d] hover:text-[#17213f]'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
         </div>
 
         {/* Content Type Filter */}
@@ -249,32 +265,43 @@ export default function DiscoverView() {
         </select>
       </div>
 
-      {/* Quick Composer */}
-      <div className="border border-[#e9e9ed] rounded-2xl p-3.5 sm:p-4 bg-white flex items-center gap-3 shadow-2xs">
-        <Avatar
-          initials={user?.initials || 'OP'}
-          color={user?.avatarColor || 'purple'}
-          src={user?.avatar}
-          size="w-9 h-9 text-xs"
-        />
-        <button
-          onClick={() => onOpenCreate('Post')}
-          className="flex-1 text-left bg-[#f7f7f8] hover:bg-[#f0f0f2] border border-[#f0f0f2] rounded-full px-4 py-2.5 text-xs text-[#858c9b] transition-colors cursor-pointer"
+      {/* Inline Post Composer */}
+      {user && (
+        <div
+          onClick={() => onOpenCreate && onOpenCreate('Post')}
+          className="border border-[#e9e9ed] rounded-2xl p-4 bg-white flex items-center gap-3 shadow-2xs hover:border-[#dedee5] transition-colors cursor-pointer"
         >
-          What’s on your mind, {user?.displayName || 'friend'}?
-        </button>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => onOpenCreate('Discussion')}
-            className="text-xs font-bold text-[#657087] hover:bg-[#fff0ee] hover:text-[#c65d59] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-          >
-            ✧ Discussion
+          <Avatar
+            initials={user.initials || 'OP'}
+            color={user.avatarColor || 'purple'}
+            src={user.avatar}
+            size="w-8 h-8 text-[11px]"
+          />
+          <div className="flex-1 text-xs text-[#737b8d] font-medium">
+            Share a thought, perspective, or question with the community...
+          </div>
+          <button className="bg-[#3f5ce8] hover:bg-[#324ecc] text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-[0_2px_0_#2b41ab] transition-all">
+            Share
           </button>
+        </div>
+      )}
+
+      {/* Feed Stream */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
+          <div className="w-8 h-8 border-3 border-[#3f5ce8] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-[#737b8d] font-semibold">Loading feed...</span>
+        </div>
+      ) : error ? (
+        <div className="bg-white border border-[#e9e9ed] rounded-3xl p-10 text-center space-y-3">
+          <span className="text-3xl">⚠️</span>
+          <p className="text-sm font-bold text-[#17213f]">Could not load feed</p>
+          <p className="text-xs text-[#737b8d] max-w-sm mx-auto">{error}</p>
           <button
-            onClick={() => onOpenCreate('Knowledge article')}
-            className="text-xs font-bold text-[#657087] hover:bg-[#fff0ee] hover:text-[#c65d59] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            onClick={() => setActiveTab((t) => t)}
+            className="mt-2 bg-[#f7f7f8] hover:bg-[#ececf0] text-[#17213f] text-xs font-bold px-4 py-2 rounded-xl border border-[#e9e9ed]"
           >
-            ▤ Knowledge
+            Retry
           </button>
         </div>
       </div>
@@ -360,7 +387,9 @@ export default function DiscoverView() {
         <DiscussionDetailModal
           discussion={activeDiscussion}
           onClose={() => setActiveDiscussion(null)}
-          onOpenAiStudio={(disc) => onOpenCreate('Knowledge article')}
+          onOpenAiStudio={() => {
+            showToast('Knowledge studio opened for discussion');
+          }}
         />
       )}
     </div>

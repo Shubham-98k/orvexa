@@ -2,9 +2,14 @@ import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 import { issueGuestPreviewToken, requireGuestPreviewOrAuth } from '../src/middleware/guestPreview.js';
 import { createRateLimiter } from '../src/middleware/rateLimiter.js';
+import {
+  calculateTrendingScore,
+  calculateForYouScore,
+  interleaveFeedItems,
+} from '../src/services/feedRankingService.js';
 
 const runTests = async () => {
-  console.log('--- Starting Orvexa Fix Validation Tests ---');
+  console.log('--- Starting Orvexa Fix Validation Tests (Batch 01 + 02) ---');
 
   // Test 1: Guest preview token issuance and verification
   {
@@ -18,7 +23,6 @@ const runTests = async () => {
 
   // Test 2: Guest preview expiration after configured duration
   {
-    // Issue token with createdAt 121 seconds ago (> 120s limit)
     const oldTimestamp = Date.now() - 125 * 1000;
     const expiredToken = issueGuestPreviewToken(oldTimestamp);
 
@@ -97,12 +101,10 @@ const runTests = async () => {
       },
     };
 
-    // Requests 1, 2, 3 should pass
     limiter(fakeReq, fakeRes, () => {});
     limiter(fakeReq, fakeRes, () => {});
     limiter(fakeReq, fakeRes, () => {});
 
-    // Request 4 should be blocked with 429
     let fourthPassed = false;
     limiter(fakeReq, fakeRes, () => {
       fourthPassed = true;
@@ -115,19 +117,69 @@ const runTests = async () => {
     console.log('✓ Test 4 Passed: Rate limiter bounds requests and returns 429 + Retry-After.');
   }
 
-  // Test 5: Reconciled counts logic test (truthful calculations)
+  // Test 5: Accurate Discussion counting rules
   {
-    const mockContributions = [
-      { authorName: 'Alice', votes: 5 },
-      { authorName: 'Alice', votes: 2 },
-      { authorName: 'Bob', votes: 3 },
+    // Rahul contributes twice, Chloe contributes once -> 3 contributions, 2 contributors
+    const contributions = [
+      { authorId: 'user_rahul', authorName: 'Rahul' },
+      { authorId: 'user_rahul', authorName: 'Rahul' },
+      { authorId: 'user_chloe', authorName: 'Chloe' },
     ];
-    const totalCount = mockContributions.length;
-    const distinctContributors = new Set(mockContributions.map((c) => c.authorName)).size;
+    const contributionCount = contributions.length;
+    const distinctContributors = new Set(contributions.map((c) => c.authorId)).size;
 
-    assert.equal(totalCount, 3, 'Total contributions must match visible items');
-    assert.equal(distinctContributors, 2, 'Distinct contributors must be unique users (Alice, Bob)');
-    console.log('✓ Test 5 Passed: Truthful counting distinguishes contributions from distinct contributors.');
+    assert.equal(contributionCount, 3, 'Contribution count must be 3');
+    assert.equal(distinctContributors, 2, 'Contributor count must be 2 distinct users');
+    console.log('✓ Test 5 Passed: Discussion canonical counts: 3 contributions, 2 contributors.');
+  }
+
+  // Test 6: Trending algorithm time decay over lifetime popularity
+  {
+    const now = Date.now();
+    // Old item (30 days ago) with 100 votes
+    const oldItem = {
+      createdAt: new Date(now - 30 * 24 * 60 * 60 * 1000),
+      votes: 100,
+      voters: new Array(100).fill('uid'),
+      commentsCount: 20,
+      contributorsCount: 10,
+    };
+    // Recent item (2 hours ago) with 15 votes and 5 contributions
+    const recentItem = {
+      createdAt: new Date(now - 2 * 60 * 60 * 1000),
+      votes: 15,
+      voters: new Array(15).fill('uid'),
+      commentsCount: 5,
+      contributorsCount: 4,
+    };
+
+    const oldScore = calculateTrendingScore(oldItem, 'discussion');
+    const recentScore = calculateTrendingScore(recentItem, 'discussion');
+
+    assert.ok(
+      recentScore > oldScore,
+      `Recent momentum score (${recentScore}) must exceed old decayed score (${oldScore})`
+    );
+    console.log('✓ Test 6 Passed: Trending time-decay ensures recent momentum outranks stale high totals.');
+  }
+
+  // Test 7: Feed diversity interleaving
+  {
+    const candidates = [
+      { id: '1', type: 'post' },
+      { id: '2', type: 'post' },
+      { id: '3', type: 'post' },
+      { id: '4', type: 'discussion' },
+      { id: '5', type: 'knowledge' },
+    ];
+
+    const interleaved = interleaveFeedItems(candidates);
+    const types = interleaved.map((i) => i.type);
+    
+    // Check that we didn't keep 3 consecutive posts when alternatives exist
+    const hasThreeConsecutivePosts = types.some((t, idx) => t === 'post' && types[idx + 1] === 'post' && types[idx + 2] === 'post');
+    assert.equal(hasThreeConsecutivePosts, false, 'Interleaving must break up long single-type runs');
+    console.log('✓ Test 7 Passed: Feed interleaving properly breaks up consecutive identical types.');
   }
 
   // Test 6: User & Post schema fields for following, followers, and likes

@@ -19,7 +19,7 @@ import VerifyEmailPage from './views/auth/VerifyEmailPage'
 import DiscoverView from './views/DiscoverView'
 import KnowledgeView from './views/KnowledgeView'
 import CirclesView from './views/CirclesView'
-import PeopleCompaniesView from './views/PeopleCompaniesView'
+import PeopleView from './views/PeopleView'
 import ProfileView from './views/ProfileView'
 
 // Strictly protected views (require logged-in account)
@@ -54,7 +54,8 @@ export default function App() {
           <Route path="/discover" element={<DiscoverView />} />
           <Route path="/knowledge" element={<KnowledgeView />} />
           <Route path="/circles" element={<CirclesView />} />
-          <Route path="/people-companies" element={<PeopleCompaniesView />} />
+          <Route path="/people" element={<PeopleView />} />
+          <Route path="/people-companies" element={<Navigate to="/people" replace />} />
           <Route path="/profile/:username" element={<ProfileView />} />
           <Route path="/profile" element={<ProfileView />} />
 

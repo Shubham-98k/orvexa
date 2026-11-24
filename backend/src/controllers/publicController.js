@@ -3,7 +3,6 @@ import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 import { Circle } from '../models/Circle.js';
-import { Company } from '../models/Company.js';
 import { User } from '../models/User.js';
 import { issueGuestPreviewToken, getGuestPreviewSeconds } from '../middleware/guestPreview.js';
 
@@ -190,26 +189,6 @@ export const getPublicUserByUsername = async (req, res, next) => {
       user,
       posts,
     });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
- * GET /api/public/companies/:slug
- */
-export const getPublicCompanyBySlug = async (req, res, next) => {
-  try {
-    const slug = req.params.slug.toLowerCase().trim();
-    const company = await Company.findOne({ slug })
-      .select('name slug logo description industry website followersCount createdAt')
-      .lean();
-
-    if (!company) {
-      return res.status(404).json({ error: 'Company not found' });
-    }
-
-    res.json({ company });
   } catch (err) {
     next(err);
   }

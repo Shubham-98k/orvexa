@@ -12,7 +12,6 @@ import {
   Plus,
   LogOut,
   ChevronDown,
-  Building2,
 } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { useAuth } from '../../hooks/useAuth';
@@ -62,9 +61,9 @@ export default function LeftSidebar({ onOpenCreate }) {
             <span>Discover</span>
           </NavLink>
 
-          <NavLink to="/people-companies" className={navLinkClass}>
-            <Building2 className="w-4 h-4 stroke-[2.2]" />
-            <span>People & Companies</span>
+          <NavLink to="/people" className={navLinkClass}>
+            <Users className="w-4 h-4 stroke-[2.2]" />
+            <span>People</span>
           </NavLink>
 
           <NavLink to="/knowledge" className={navLinkClass}>

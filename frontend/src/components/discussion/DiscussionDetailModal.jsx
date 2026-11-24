@@ -1,22 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Send, Bot } from 'lucide-react';
+import { X, Bot, Send } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { apiGet, apiPost } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStudio }) {
   const { user } = useAuth();
+  const [discussionData, setDiscussionData] = useState(discussion);
   const [contributions, setContributions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inputBody, setInputBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [votes, setVotes] = useState(discussion.votes || 0);
+  const [votes, setVotes] = useState(
+    discussion.voteCount !== undefined ? discussion.voteCount : (discussion.votes || 0)
+  );
+  const [voted, setVoted] = useState(Boolean(discussion.hasUpvoted || discussion.viewerVote === 1));
 
   useEffect(() => {
     if (discussion?._id) {
+      setLoading(true);
       apiGet(`/discussions/${discussion._id}`)
         .then((res) => {
-          if (res?.contributions) setContributions(res.contributions);
+          if (res?.discussion) {
+            setDiscussionData(res.discussion);
+            const vCount = res.discussion.voteCount !== undefined ? res.discussion.voteCount : res.discussion.votes;
+            setVotes(vCount);
+            setVoted(Boolean(res.discussion.hasUpvoted || res.discussion.viewerVote === 1));
+          }
+          if (res?.contributions) {
+            setContributions(res.contributions);
+          }
         })
         .catch(() => {})
         .finally(() => setLoading(false));
@@ -26,9 +39,11 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
   const handleUpvote = async () => {
     try {
       const res = await apiPost(`/discussions/${discussion._id}/upvote`, {});
-      setVotes(res.votes);
+      const newVotes = res.voteCount !== undefined ? res.voteCount : res.votes;
+      setVotes(newVotes);
+      setVoted(Boolean(res.hasUpvoted || res.viewerVote === 1));
     } catch {
-      setVotes((prev) => prev + 1);
+      // rollback or handle error
     }
   };
 
@@ -44,6 +59,11 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
       if (res?.contribution) {
         setContributions((prev) => [...prev, res.contribution]);
         setInputBody('');
+        setDiscussionData((prev) => ({
+          ...prev,
+          contributionCount: res.contributionCount || res.commentsCount || (prev.contributionCount + 1),
+          contributorCount: res.contributorCount || res.contributorsCount || prev.contributorCount,
+        }));
       }
     } catch (err) {
       alert(err.message || 'Unable to post contribution.');
@@ -51,6 +71,14 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
       setSubmitting(false);
     }
   };
+
+  const totalContributions = discussionData.contributionCount !== undefined
+    ? discussionData.contributionCount
+    : contributions.length;
+
+  const totalContributors = discussionData.contributorCount !== undefined
+    ? discussionData.contributorCount
+    : new Set(contributions.map((c) => c.authorName)).size;
 
   return (
     <div
@@ -61,9 +89,9 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
         <div className="flex items-start justify-between gap-4 pb-2 border-b border-[#f0f0f2]">
           <div className="flex items-center gap-2">
             <span className="bg-[#fff0ee] text-[#bd625e] px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase">
-              {discussion.category || 'General'}
+              {discussionData.category || 'General'}
             </span>
-            <span className="text-xs text-[#8b92a1]">● {discussion.status || 'open'}</span>
+            <span className="text-xs text-[#8b92a1]">● {discussionData.status || 'open'}</span>
           </div>
           <button onClick={onClose} className="text-[#8b92a1] hover:text-[#17213f] p-1 rounded-lg">
             <X className="w-5 h-5" />
@@ -71,24 +99,26 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
         </div>
 
         <div>
-          <h2 className="text-xl sm:text-2xl font-black text-[#17213f] leading-snug">{discussion.title}</h2>
+          <h2 className="text-xl sm:text-2xl font-black text-[#17213f] leading-snug">{discussionData.title}</h2>
           <div className="flex items-center gap-2.5 mt-3 pt-2">
             <Avatar
-              initials={discussion.authorInitials || 'OP'}
-              color={discussion.authorColor || 'purple'}
+              initials={discussionData.authorInitials || 'OP'}
+              color={discussionData.authorColor || 'purple'}
               size="w-7 h-7 text-[10px]"
             />
-            <span className="text-xs font-bold text-[#17213f]">{discussion.authorName}</span>
+            <span className="text-xs font-bold text-[#17213f]">{discussionData.authorName}</span>
           </div>
           <p className="text-xs sm:text-sm text-[#4a5265] mt-3 leading-relaxed whitespace-pre-line bg-[#fafafb] p-4 rounded-2xl border border-[#f0f0f2]">
-            {discussion.body}
+            {discussionData.body}
           </p>
         </div>
 
-        <div className="flex items-center gap-3 pt-2 border-t border-[#f0f0f2]">
+        <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#f0f0f2]">
           <button
             onClick={handleUpvote}
-            className="bg-[#fff0ee] hover:bg-[#fddedb] text-[#c65d59] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              voted ? 'bg-[#fddedb] text-[#c65d59]' : 'bg-[#fff0ee] hover:bg-[#fddedb] text-[#c65d59]'
+            }`}
           >
             <span>↑ Upvote</span>
             <b>{votes}</b>
@@ -97,7 +127,7 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
           <button
             onClick={() => {
               onClose();
-              if (onOpenAiStudio) onOpenAiStudio(discussion);
+              if (onOpenAiStudio) onOpenAiStudio(discussionData);
             }}
             className="bg-[#8b63d9] hover:bg-[#7a52c7] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
           >
@@ -108,9 +138,14 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
 
         {/* Contributions Thread */}
         <div className="space-y-3 pt-3 border-t border-[#f0f0f2]">
-          <h4 className="text-xs font-bold text-[#17213f] uppercase tracking-wider">
-            Contributions & Perspectives ({contributions.length})
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-[#17213f] uppercase tracking-wider">
+              Contributions ({totalContributions})
+            </h4>
+            <span className="text-[11px] text-[#737b8d]">
+              {totalContributors} {totalContributors === 1 ? 'contributor' : 'contributors'}
+            </span>
+          </div>
 
           {loading ? (
             <div className="py-4 text-center text-xs text-[#8b92a1]">Loading contributions...</div>

@@ -116,7 +116,43 @@
   3. Authenticated user exemption.
   4. Rate limiter `429` enforcement and `Retry-After`.
   5. Accurate distinct contributor vs contribution counting.
-  6. Schema definitions for `followers`, `following`, `likes`, `likedBy`, and comment counters.
-  7. Strict `401 AUTHENTICATION_REQUIRED` enforcement for `following` mode on `/posts`, `/discussions`, and `/knowledge`.
-  8. Role-based `403` access control on `/api/admin/overview`.
-  9. Direct conversation validation on `/api/conversations`.
+
+
+---
+
+## Targeted Fix Patch Implementation (ORVEXA_FIX_02.md)
+
+### 1. Canonical Discussion Counting & Data Consistency
+- **Accurate Counting Logic:** Fixed in `backend/src/controllers/discussionController.js` through `reconcileDiscussionCounts()`.
+  - `contributionCount`: count of persisted active contribution documents.
+  - `contributorCount`: distinct user IDs/names among contributions (e.g. 3 contributions from 2 distinct users shows 3 contributions and 2 contributors).
+  - `voteCount`: derived directly from `discussion.voters.length`, enforcing at most one vote per user with toggle/unvote capability.
+- **Frontend Alignment:** `DiscussionCard.jsx` and `DiscussionDetailModal.jsx` use these exact definitions, eliminating mismatched or hardcoded counts.
+
+### 2. People-to-Follow Navigation & Profile Routing Fix
+- Fixed `RightSidebar.jsx` where clicking a suggested person's name, avatar, or "View" previously loaded `/profile?username=...` which defaulted to the logged-in user.
+- Updated all links to route to `/profile/${person.username}`, loading that specific target user's public profile and public posts cleanly via `useParams()`.
+
+### 3. Removal of Company Functionality
+- Fully removed company functionality from backend routes, controllers, and models:
+  - Deleted `backend/src/models/Company.js` and `backend/src/controllers/companyController.js`.
+  - Removed company endpoints from `apiRoutes.js` and `publicController.js`.
+- Replaced `PeopleCompaniesView.jsx` with dedicated `PeopleView.jsx` (`/people`).
+- Cleaned up `LeftSidebar.jsx` to display a single **People** navigation item with `<Users />` icon.
+
+### 4. Removal of Explore Topics from Discover
+- Removed the "Explore topics" card and associated handlers from `RightSidebar.jsx`. Adjusted sidebar layout cleanly with no leftover gaps or dead code.
+
+### 5. Discover 4-Mode Server-Backed Feed
+- Implemented `/api/feed?filter=...&page=...&limit=...` via `backend/src/controllers/feedController.js` and `backend/src/services/feedRankingService.js`:
+  1. **For you:** Personalized ranking with recency, followed creator boosts (+35), and soft interleaving to prevent consecutive identical content types.
+  2. **Trending:** Time-decayed momentum formula `(engagement / (ageHours + 2)^1.5) * qualityMultiplier` ensuring recent momentum outranks stale high totals.
+  3. **Following:** Restricted to authenticated users; queries eligible content authored by followed accounts. Shows honest empty state (`emptyReason: 'no_follows'`) if the user follows nobody.
+  4. **Latest:** Strict chronological sort (`createdAt` desc) across Posts, Discussions, and Knowledge.
+- Connected `DiscoverView.jsx` with stable pagination ("Load more items"), honest empty states, and content type filtering.
+
+### 6. Automated Test Suite
+- Extended `backend/tests/verifyFixes.test.js` to validate:
+  - Canonical 3-contribution / 2-contributor logic.
+  - Trending time-decay algorithm.
+  - Feed diversity interleaving.

@@ -15,13 +15,21 @@ export default function DiscussionCard({ discussion, onOpenDetail }) {
     e.stopPropagation();
     try {
       const res = await apiPost(`/discussions/${discussion._id}/upvote`, {});
-      setVotes(res.votes);
-      setVoted(res.hasUpvoted ?? res.voted);
+      const newVotes = res.voteCount !== undefined ? res.voteCount : res.votes;
+      setVotes(newVotes);
+      setVoted(Boolean(res.hasUpvoted || res.viewerVote === 1));
     } catch {
-      setVoted((prev) => !prev);
-      setVotes((prev) => (voted ? prev - 1 : prev + 1));
+      // rollback or no-op on unauthenticated
     }
   };
+
+  const contributionCount = discussion.contributionCount !== undefined
+    ? discussion.contributionCount
+    : (discussion.commentsCount || 0);
+
+  const contributorCount = discussion.contributorCount !== undefined
+    ? discussion.contributorCount
+    : (discussion.contributorsCount || 0);
 
   return (
     <article
@@ -54,7 +62,7 @@ export default function DiscussionCard({ discussion, onOpenDetail }) {
             <span className="bg-[#fff0ee] text-[#bd625e] px-2 py-0.5 rounded font-bold text-[10px]">
               {discussion.category || 'General'}
             </span>
-            <span>• {discussion.contributorsCount || 1} contributors</span>
+            <span>• {contributorCount} {contributorCount === 1 ? 'contributor' : 'contributors'}</span>
             <span className="text-[#e66c68] font-bold">◉ {discussion.status || 'open'}</span>
           </div>
         </div>
@@ -69,7 +77,7 @@ export default function DiscussionCard({ discussion, onOpenDetail }) {
           />
           <span className="font-semibold text-[#17213f]">{discussion.authorName}</span>
         </div>
-        <span>💬 {discussion.commentsCount || 0} contributions</span>
+        <span>💬 {contributionCount} {contributionCount === 1 ? 'contribution' : 'contributions'}</span>
       </div>
     </article>
   );

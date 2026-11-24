@@ -4,14 +4,14 @@ import Avatar from '../common/Avatar';
 import { apiGet } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function RightSidebar({ onSelectTopic, onOpenCreateIdea }) {
+export default function RightSidebar({ onOpenCreateIdea }) {
   const { user } = useAuth();
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch live users from search/users API, excluding current user
-    apiGet('/search?q=a&type=users')
+    // Fetch live users from users API, excluding current user
+    apiGet('/users?limit=5')
       .then((res) => {
         if (res?.users) {
           const eligible = res.users.filter((u) => u._id !== user?.id && u.username !== user?.username);
@@ -22,16 +22,8 @@ export default function RightSidebar({ onSelectTopic, onOpenCreateIdea }) {
       .finally(() => setLoading(false));
   }, [user]);
 
-  const topics = [
-    { color: '#e66c68', name: 'Work & Culture' },
-    { color: '#8b63d9', name: 'Technology' },
-    { color: '#3f5ce8', name: 'Design & UX' },
-    { color: '#e4aa48', name: 'Learning' },
-    { color: '#5aa789', name: 'Science' },
-  ];
-
   return (
-    <aside className="border-l border-[#e9e9ed] p-6 hidden xl:flex flex-col gap-5 sticky top-0 h-screen overflow-y-auto bg-white">
+    <aside className="border-l border-[#e9e9ed] p-6 hidden xl:flex flex-col gap-6 sticky top-0 h-screen overflow-y-auto bg-white">
       {/* People to follow */}
       <div className="border border-[#e9e9ed] rounded-2xl p-4 space-y-3 shadow-2xs">
         <div className="flex items-center justify-between text-xs font-bold text-[#17213f]">
@@ -51,14 +43,21 @@ export default function RightSidebar({ onSelectTopic, onOpenCreateIdea }) {
           <div className="space-y-2.5">
             {people.map((person) => (
               <div key={person._id || person.username} className="flex items-center gap-2.5 py-1">
-                <Avatar
-                  initials={person.initials || person.displayName?.slice(0, 2).toUpperCase()}
-                  color={person.avatarColor || 'blue'}
-                  src={person.avatar}
-                  size="w-7 h-7 text-[10px]"
-                />
+                <Link to={`/profile/${person.username}`}>
+                  <Avatar
+                    initials={person.initials || person.displayName?.slice(0, 2).toUpperCase()}
+                    color={person.avatarColor || 'blue'}
+                    src={person.avatar}
+                    size="w-7 h-7 text-[10px]"
+                  />
+                </Link>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-[#17213f] truncate">{person.displayName}</div>
+                  <Link
+                    to={`/profile/${person.username}`}
+                    className="text-xs font-bold text-[#17213f] hover:text-[#3f5ce8] truncate block"
+                  >
+                    {person.displayName}
+                  </Link>
                   <div className="text-[10px] text-[#737b8d] truncate">@{person.username}</div>
                 </div>
                 <Link
@@ -71,22 +70,6 @@ export default function RightSidebar({ onSelectTopic, onOpenCreateIdea }) {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Explore Topics */}
-      <div className="border border-[#e9e9ed] rounded-2xl p-4 space-y-2.5 shadow-2xs">
-        <h3 className="text-xs font-bold text-[#17213f]">Explore topics</h3>
-        {topics.map((topic) => (
-          <button
-            key={topic.name}
-            type="button"
-            onClick={() => onSelectTopic && onSelectTopic(topic.name)}
-            className="w-full flex items-center gap-2.5 text-xs text-[#626b7d] hover:text-[#17213f] cursor-pointer py-1 text-left transition-colors"
-          >
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: topic.color }} />
-            <span className="flex-1">{topic.name}</span>
-          </button>
-        ))}
       </div>
 
       {/* Community Prompt */}
