@@ -1,47 +1,178 @@
 import { User } from '../models/User.js';
+import { Post } from '../models/Post.js';
+
+/**
+ * GET /api/users/me
+ * Explicitly return authenticated user's full account information
+ */
+export async function getMe(req, res) {
+  try {
+    const user = await User.findById(req.user._id).select(
+      '-passwordHash -resetPasswordToken -resetPasswordExpires -emailVerificationToken'
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+}
 
 /**
  * GET /api/users/:username
- * Public profile lookup by username.
+ * Public profile lookup by username with real counts and follow status.
  */
 export async function getUserByUsername(req, res) {
   try {
-    const user = await User.findOne({ username: req.params.username }).select(
-      '-password -resetPasswordToken -resetPasswordExpires -emailVerificationToken'
+    const username = req.params.username.toLowerCase().trim();
+    const user = await User.findOne({ username }).select(
+      'username displayName headline bio initials avatarColor avatar platformRole followersCount followingCount followers createdAt'
     );
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Fetch user's public posts
+    const posts = await Post.find({
+      $or: [{ authorName: user.displayName }, { authorId: user._id }],
+      status: 'published',
+    })
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    const isFollowing = req.user
+      ? user.followers?.some((f) => f.toString() === req.user._id.toString())
+      : false;
+
+    res.json({
+      user: {
+        _id: user._id,
+        id: user._id,
+        username: user.username,
+        displayName: user.displayName,
+        headline: user.headline,
+        bio: user.bio,
+        initials: user.initials,
+        avatarColor: user.avatarColor,
+        avatar: user.avatar,
+        platformRole: user.platformRole,
+        followersCount: user.followersCount || user.followers?.length || 0,
+        followingCount: user.followingCount || 0,
+        createdAt: user.createdAt,
+        isFollowing,
+        isSelf: req.user ? req.user._id.toString() === user._id.toString() : false,
+      },
+      posts,
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+}
+
+/**
+ * POST /api/users/:userId/follow
+ * Real follow/unfollow toggle
+ */
+export async function toggleFollowUser(req, res) {
+  try {
+    const targetUserId = req.params.userId;
+    const currentUserId = req.user._id;
+
+    if (targetUserId === currentUserId.toString()) {
+      return res.status(400).json({ error: 'You cannot follow yourself' });
+    }
+
+    const targetUser = await User.findById(targetUserId);
+    const currentUser = await User.findById(currentUserId);
+
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+    const isFollowing = targetUser.followers?.some((f) => f.toString() === currentUserId.toString());
+
+    if (isFollowing) {
+      // Unfollow
+      targetUser.followers = targetUser.followers.filter((f) => f.toString() !== currentUserId.toString());
+      targetUser.followersCount = Math.max(0, targetUser.followers.length);
+      currentUser.following = currentUser.following.filter((f) => f.toString() !== targetUserId.toString());
+      currentUser.followingCount = Math.max(0, currentUser.following.length);
+    } else {
+      // Follow
+      if (!targetUser.followers) targetUser.followers = [];
+      targetUser.followers.push(currentUserId);
+      targetUser.followersCount = targetUser.followers.length;
+      if (!currentUser.following) currentUser.following = [];
+      currentUser.following.push(targetUserId);
+      currentUser.followingCount = currentUser.following.length;
+    }
+
+    await Promise.all([targetUser.save(), currentUser.save()]);
+
+    res.json({
+      isFollowing: !isFollowing,
+      followersCount: targetUser.followersCount,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to toggle follow', details: err.message });
+  }
+}
+
+/**
+ * GET /api/users
+ * Real search for people/users
+ */
+export async function searchUsers(req, res) {
+  try {
+    const { q, page = 1, limit = 20 } = req.query;
+    let query = {};
+
+    if (q && q.trim()) {
+      const regex = new RegExp(q.trim(), 'i');
+      query = {
+        $or: [{ username: regex }, { displayName: regex }, { headline: regex }],
+      };
+    }
+
+    const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.min(50, parseInt(limit, 10));
+
+    const users = await User.find(query)
+      .select('username displayName headline bio initials avatarColor avatar platformRole followersCount')
+      .sort({ followersCount: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(Math.min(50, parseInt(limit, 10)))
+      .lean();
+
+    const mapped = users.map((u) => ({
+      ...u,
+      isFollowing: req.user ? u.followers?.some((f) => f.toString() === req.user._id.toString()) : false,
+    }));
+
+    res.json({ users: mapped });
+  } catch (err) {
+    res.status(500).json({ error: 'User search failed', details: err.message });
   }
 }
 
 /**
  * PATCH /api/users/me
- * Update the authenticated user's editable profile fields.
- * Allowed: displayName, headline, bio, avatar
+ * Update authenticated user profile fields
  */
 export async function updateProfile(req, res) {
   try {
     const { displayName, headline, bio, avatar } = req.body;
 
-    // Only pick allowed fields — never accept role/email changes here
     const updates = {};
     if (displayName !== undefined) updates.displayName = displayName.trim().slice(0, 80);
     if (headline !== undefined) updates.headline = headline.trim().slice(0, 120);
     if (bio !== undefined) updates.bio = bio.trim().slice(0, 500);
-    if (avatar !== undefined) updates.avatar = avatar; // URL string
+    if (avatar !== undefined) updates.avatar = avatar;
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: updates },
       { new: true, runValidators: true }
-    ).select('-password -resetPasswordToken -resetPasswordExpires -emailVerificationToken');
+    ).select('-passwordHash -resetPasswordToken -resetPasswordExpires -emailVerificationToken');
 
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     res.json(user);
   } catch (err) {
-    res.status(400).json({ message: 'Update failed', error: err.message });
+    res.status(400).json({ error: 'Update failed', details: err.message });
   }
 }

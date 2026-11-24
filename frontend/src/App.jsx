@@ -15,14 +15,17 @@ import ForgotPasswordPage from './views/auth/ForgotPasswordPage'
 import ResetPasswordPage from './views/auth/ResetPasswordPage'
 import VerifyEmailPage from './views/auth/VerifyEmailPage'
 
-// Protected views
+// App views (previewable during 120s guest session or authenticated)
 import DiscoverView from './views/DiscoverView'
 import KnowledgeView from './views/KnowledgeView'
 import CirclesView from './views/CirclesView'
+import PeopleCompaniesView from './views/PeopleCompaniesView'
+import ProfileView from './views/ProfileView'
+
+// Strictly protected views (require logged-in account)
 import LibraryView from './views/LibraryView'
 import ActivityView from './views/ActivityView'
 import MessagesView from './views/MessagesView'
-import ProfileView from './views/ProfileView'
 import AdminView from './views/AdminView'
 
 export default function App() {
@@ -36,7 +39,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
+        {/* Public landing & auth flows */}
         <Route path="/" element={<StoriesInMotionHero />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
@@ -44,23 +47,50 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-        {/* Protected — all nested routes share AppLayout (sidebar + content area) */}
-        <Route
-          element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          }
-        >
+        {/* Orvexa App Layout */}
+        <Route element={<AppLayout />}>
+          {/* Public Preview & Authenticated Routes */}
           <Route path="/app" element={<DiscoverView />} />
           <Route path="/discover" element={<DiscoverView />} />
           <Route path="/knowledge" element={<KnowledgeView />} />
           <Route path="/circles" element={<CirclesView />} />
-          <Route path="/library" element={<LibraryView />} />
-          <Route path="/activity" element={<ActivityView />} />
-          <Route path="/messages" element={<MessagesView />} />
+          <Route path="/people-companies" element={<PeopleCompaniesView />} />
+          <Route path="/profile/:username" element={<ProfileView />} />
           <Route path="/profile" element={<ProfileView />} />
-          <Route path="/admin" element={<AdminView />} />
+
+          {/* Strictly Protected Routes (Require active user session) */}
+          <Route
+            path="/library"
+            element={
+              <ProtectedRoute>
+                <LibraryView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activity"
+            element={
+              <ProtectedRoute>
+                <ActivityView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute>
+                <MessagesView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminView />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* Catch-all */}

@@ -57,3 +57,41 @@
 | Phase 5 | AI-assisted Knowledge Partner | Completed | Studio modal with outline generator & drafting |
 | Phase 6 | Circles, Messaging & Realtime | Completed | Communities directory, join/leave, 1:1 chats |
 | Phase 7 | Library, Activity & Moderation | Completed | Saved items, notification feed, audit logs |
+
+
+---
+
+## Targeted Fix Patch Implementation (ORVEXA_FIX.md)
+
+### 1. Server-Authoritative 120-Second Guest Preview
+- **Token Mechanism:** Implemented `backend/src/middleware/guestPreview.js` using signed, tamper-resistant tokens carrying the first-seen timestamp (`createdAt`). Configurable via `GUEST_PREVIEW_SECONDS=120`.
+- **Enforcement:** Enforces preview expiration on the server, rejecting expired unauthenticated reads with `403 Forbidden` (`code: GUEST_PREVIEW_EXPIRED`). Authenticated sessions are fully exempt.
+- **Frontend Interceptor & Modal:** Integrated `GuestGateModal.jsx` triggered automatically upon preview expiration, preserving the visitor's destination for seamless post-login return.
+
+### 2. Route-Specific Rate Limiting
+- **Middleware:** Implemented sliding-window limiter `backend/src/middleware/rateLimiter.js` combining IP and session identifier.
+- **Endpoints Protected:** Configured on public content reads (`PUBLIC_API_RATE_LIMIT_MAX_REQUESTS=60`) and search (`PUBLIC_SEARCH_RATE_LIMIT_MAX_REQUESTS=20`). Returns `429 Too Many Requests` with `Retry-After`.
+
+### 3. Public Read-Only APIs
+- Created `backend/src/controllers/publicController.js` and registered `/api/public/*` routes for Discover, Posts, Discussions, Knowledge, Users, Companies, and Circles with strict privacy filtering and pagination.
+
+### 4. People & Companies Discovery
+- **Company Model & Controller:** Created `backend/src/models/Company.js` and `backend/src/controllers/companyController.js` with search, profile lookup, and follow toggle.
+- **People Discovery:** Implemented `backend/src/controllers/userController.js` search and follow actions.
+- **Frontend View:** Created `frontend/src/views/PeopleCompaniesView.jsx` with real search, follow/unfollow persistence, and direct profile navigation. Added to `LeftSidebar.jsx`.
+
+### 5. Profile Routing & Identity Isolation
+- Updated `ProfileView.jsx` to dynamically load target user profiles via `/profile/:username` without conflating with the logged-in user.
+- Distinguishes self-editing from viewing/following others.
+
+### 6. Count Reconciliation & Feed Alignment
+- Reconciled `votes`, `commentsCount` (persisted contributions), and `contributorsCount` (distinct authors) in `discussionController.js` directly from records.
+- Discover feed tabs (`For you`, `Trending`, `Following`, `Latest`) query distinct database filters. `Following` strictly requires authentication and returns `401 AUTHENTICATION_REQUIRED` for guests.
+
+### 7. Automated Test Suite
+- Automated test runner at `backend/tests/verifyFixes.test.js` validating:
+  1. Guest preview token issuance.
+  2. 120-second preview expiry returning `403 GUEST_PREVIEW_EXPIRED`.
+  3. Authenticated user exemption.
+  4. Rate limiter `429` enforcement and `Retry-After`.
+  5. Accurate distinct contributor vs contribution counting.

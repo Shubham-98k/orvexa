@@ -3,17 +3,33 @@ import { DiscussionContribution } from '../models/DiscussionContribution.js';
 
 export const getDiscussions = async (req, res, next) => {
   try {
-    const { category, sort, status } = req.query;
-    let query = {};
+    const { category, sort, status, page = 1, limit = 20 } = req.query;
+    let query = { status: { $ne: 'removed' } };
     if (category && category !== 'All categories') query.category = category;
     if (status && status !== 'All statuses') query.status = status.toLowerCase().replace(' ', '_');
 
-    let sortObj = { votes: -1 };
-    if (sort === 'Newest') sortObj = { createdAt: -1 };
+    let sortObj = { votes: -1, createdAt: -1 };
+    if (sort === 'Newest' || sort === 'latest') sortObj = { createdAt: -1 };
     if (sort === 'Most discussed') sortObj = { commentsCount: -1 };
 
-    const discussions = await Discussion.find(query).sort(sortObj);
-    res.json({ discussions });
+    const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.min(50, parseInt(limit, 10));
+
+    const discussions = await Discussion.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(Math.min(50, parseInt(limit, 10)))
+      .lean();
+
+    // Map whether current user has upvoted
+    const mapped = discussions.map((d) => ({
+      ...d,
+      hasUpvoted: req.user ? d.voters?.some((v) => v.toString() === req.user._id.toString()) : false,
+      votes: d.votes || 0,
+      commentsCount: d.commentsCount || 0,
+      contributorsCount: d.contributorsCount || 0,
+    }));
+
+    res.json({ discussions: mapped });
   } catch (err) {
     next(err);
   }
@@ -22,15 +38,37 @@ export const getDiscussions = async (req, res, next) => {
 export const getDiscussionById = async (req, res, next) => {
   try {
     const { discussionId } = req.params;
-    const discussion = await Discussion.findById(discussionId);
+    const discussion = await Discussion.findById(discussionId).lean();
     if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
 
+    // Retrieve persisted contributions
     const contributions = await DiscussionContribution.find({
       discussionId,
       status: 'active',
-    }).sort({ votes: -1, createdAt: 1 });
+    })
+      .sort({ votes: -1, createdAt: 1 })
+      .lean();
 
-    res.json({ discussion, contributions });
+    // Truthful reconciliation: counts derived directly from records
+    const distinctContributors = new Set(contributions.map((c) => c.authorName)).size;
+    const hasUpvoted = req.user
+      ? discussion.voters?.some((v) => v.toString() === req.user._id.toString())
+      : false;
+
+    const reconciled = {
+      ...discussion,
+      votes: discussion.votes || 0,
+      commentsCount: contributions.length,
+      contributorsCount: distinctContributors,
+      hasUpvoted,
+    };
+
+    res.json({
+      discussion: reconciled,
+      contributions,
+      totalContributions: contributions.length,
+      distinctContributors,
+    });
   } catch (err) {
     next(err);
   }
@@ -50,10 +88,12 @@ export const createDiscussion = async (req, res, next) => {
       authorColor: req.user.avatarColor,
       title: title.trim(),
       body: body.trim(),
-      category: category || 'UX',
-      tags: tags || ['Discussion'],
-      votes: 1,
-      voters: [req.user._id],
+      category: category || 'General',
+      tags: tags || ['#ideas'],
+      votes: 0,
+      voters: [],
+      commentsCount: 0,
+      contributorsCount: 0,
     });
 
     res.status(201).json({ discussion });
@@ -70,20 +110,24 @@ export const upvoteDiscussion = async (req, res, next) => {
     const discussion = await Discussion.findById(discussionId);
     if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
 
-    const idx = discussion.voters.indexOf(userId);
-    let voted = false;
-    if (idx === -1) {
-      discussion.voters.push(userId);
-      discussion.votes += 1;
-      voted = true;
+    if (!discussion.voters) discussion.voters = [];
+    const index = discussion.voters.findIndex((v) => v.toString() === userId.toString());
+    let hasUpvoted = false;
+
+    if (index > -1) {
+      // Remove upvote
+      discussion.voters.splice(index, 1);
+      discussion.votes = Math.max(0, discussion.voters.length);
+      hasUpvoted = false;
     } else {
-      discussion.voters.splice(idx, 1);
-      discussion.votes = Math.max(0, discussion.votes - 1);
-      voted = false;
+      // Add upvote
+      discussion.voters.push(userId);
+      discussion.votes = discussion.voters.length;
+      hasUpvoted = true;
     }
 
     await discussion.save();
-    res.json({ voted, votes: discussion.votes });
+    res.json({ votes: discussion.votes, hasUpvoted });
   } catch (err) {
     next(err);
   }
@@ -92,20 +136,14 @@ export const upvoteDiscussion = async (req, res, next) => {
 export const addContribution = async (req, res, next) => {
   try {
     const { discussionId } = req.params;
-    const { body, parentContributionId } = req.body;
+    const { body, type } = req.body;
+
     if (!body || !body.trim()) {
       return res.status(400).json({ error: 'Contribution text is required' });
     }
 
     const discussion = await Discussion.findById(discussionId);
     if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
-    if (discussion.isLocked) return res.status(403).json({ error: 'Discussion is locked' });
-
-    let depth = 0;
-    if (parentContributionId) {
-      const parent = await DiscussionContribution.findById(parentContributionId);
-      if (parent) depth = Math.min(3, parent.depth + 1);
-    }
 
     const contribution = await DiscussionContribution.create({
       discussionId,
@@ -113,18 +151,21 @@ export const addContribution = async (req, res, next) => {
       authorName: req.user.displayName,
       authorInitials: req.user.initials,
       authorColor: req.user.avatarColor,
-      parentContributionId: parentContributionId || null,
+      type: type || 'solution',
       body: body.trim(),
-      depth,
-      votes: 1,
-      voters: [req.user._id],
     });
 
-    discussion.commentsCount += 1;
-    discussion.contributorsCount += 1;
+    // Update Discussion metadata accurately
+    const allContributions = await DiscussionContribution.find({ discussionId, status: 'active' });
+    discussion.commentsCount = allContributions.length;
+    discussion.contributorsCount = new Set(allContributions.map((c) => c.authorName)).size;
     await discussion.save();
 
-    res.status(201).json({ contribution });
+    res.status(201).json({
+      contribution,
+      commentsCount: discussion.commentsCount,
+      contributorsCount: discussion.contributorsCount,
+    });
   } catch (err) {
     next(err);
   }

@@ -1,13 +1,30 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
 import CreateModal from '../common/CreateModal';
+import GuestGateModal from '../auth/GuestGateModal';
+import { setOnGuestPreviewExpired } from '../../api/client';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function AppLayout() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createDefaultType, setCreateDefaultType] = useState('Post');
   const [toastMessage, setToastMessage] = useState('');
+  const [guestGateOpen, setGuestGateOpen] = useState(false);
+
+  // Register listener for server-sent GUEST_PREVIEW_EXPIRED 403 response
+  useEffect(() => {
+    setOnGuestPreviewExpired(() => {
+      if (!user) {
+        setGuestGateOpen(true);
+      }
+    });
+  }, [user]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -15,6 +32,11 @@ export default function AppLayout() {
   };
 
   const handleOpenCreate = (type = 'Post') => {
+    if (!user) {
+      // Mutations strictly require authentication
+      navigate('/login', { state: { from: location, message: 'Please log in to create content.' } });
+      return;
+    }
     setCreateDefaultType(type);
     setCreateModalOpen(true);
   };
@@ -44,8 +66,14 @@ export default function AppLayout() {
         onClose={() => setCreateModalOpen(false)}
         onItemCreated={(item, type) => {
           showToast(`${type} published successfully!`);
-          window.location.reload(); // Refresh view data cleanly
+          window.location.reload();
         }}
+      />
+
+      {/* Guest Preview Expiry Gate Modal */}
+      <GuestGateModal
+        isOpen={guestGateOpen}
+        onClose={() => setGuestGateOpen(false)}
       />
 
       {/* Floating Toast Notification */}
