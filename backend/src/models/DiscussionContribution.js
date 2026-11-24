@@ -42,7 +42,6 @@ const contributionSchema = new mongoose.Schema(
     depth: {
       type: Number,
       default: 0,
-      max: 3,
     },
   },
   { timestamps: true }

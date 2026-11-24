@@ -1,5 +1,7 @@
 import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
+import { Notification } from '../models/Notification.js';
+import { User } from '../models/User.js';
 
 /**
  * Reconciles discussion counts accurately against persisted records:
@@ -204,7 +206,7 @@ export const upvoteDiscussion = async (req, res, next) => {
 export const addContribution = async (req, res, next) => {
   try {
     const { discussionId } = req.params;
-    const { body, type } = req.body;
+    const { body, type, parentContributionId } = req.body;
 
     if (!body || !body.trim()) {
       return res.status(400).json({ error: 'Contribution text is required' });
@@ -213,8 +215,22 @@ export const addContribution = async (req, res, next) => {
     const discussion = await Discussion.findById(discussionId);
     if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
 
+    let depth = 0;
+    let parent = null;
+    if (parentContributionId) {
+      parent = await DiscussionContribution.findOne({
+        _id: parentContributionId,
+        discussionId,
+        status: 'active',
+      });
+      if (!parent) return res.status(404).json({ error: 'Parent contribution not found' });
+      depth = (parent.depth || 0) + 1;
+    }
+
     const contribution = await DiscussionContribution.create({
       discussionId,
+      parentContributionId: parentContributionId || null,
+      depth,
       authorId: req.user._id,
       authorName: req.user.displayName,
       authorInitials: req.user.initials,
@@ -225,6 +241,37 @@ export const addContribution = async (req, res, next) => {
 
     // Reconcile truthful counters after insertion
     const stats = await reconcileDiscussionCounts(discussionId);
+
+    const recipientIds = new Set();
+    if (discussion.authorId && discussion.authorId.toString() !== req.user._id.toString()) {
+      recipientIds.add(discussion.authorId.toString());
+    }
+    if (parent?.authorId && parent.authorId.toString() !== req.user._id.toString()) {
+      recipientIds.add(parent.authorId.toString());
+    }
+
+    if (recipientIds.size > 0) {
+      const recipients = await User.find({
+        _id: { $in: [...recipientIds] },
+        'notificationPreferences.replies': { $ne: false },
+      }).select('_id');
+
+      await Notification.insertMany(
+        recipients.map((recipient) => ({
+          recipientId: recipient._id,
+          actorId: req.user._id,
+          actorName: req.user.displayName,
+          actorInitials: req.user.initials,
+          actorColor: req.user.avatarColor,
+          type: 'contribution',
+          title: parent
+            ? `replied to ${parent.authorId.toString() === recipient._id.toString() ? 'your contribution' : 'a contribution'} on "${discussion.title || 'a discussion'}"`
+            : `contributed to your discussion "${discussion.title || 'Untitled discussion'}"`,
+          targetType: 'discussion',
+          targetId: discussion._id,
+        }))
+      );
+    }
 
     res.status(201).json({
       contribution,

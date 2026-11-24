@@ -60,8 +60,11 @@ router.get('/users', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateLi
 // 5. POSTS
 // ==========================================
 router.get('/posts', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, postCtrl.getPosts);
+router.get('/posts/:postId', requireAuth, postCtrl.getPostById);
 router.post('/posts', requireAuth, postCtrl.createPost);
 router.post('/posts/:postId/like', requireAuth, postCtrl.toggleLikePost);
+router.get('/posts/:postId/replies', requireAuth, postCtrl.getPostReplies);
+router.post('/posts/:postId/replies', requireAuth, postCtrl.addPostReply);
 router.post('/posts/:postId/save', requireAuth, postCtrl.savePost);
 
 // ==========================================
@@ -104,6 +107,8 @@ router.post('/conversations/:conversationId/messages', requireAuth, msgCtrl.send
 // 10. NOTIFICATIONS & ACTIVITY
 // ==========================================
 router.get('/notifications', requireAuth, notifCtrl.getNotifications);
+router.get('/notifications/preferences', requireAuth, notifCtrl.getNotificationPreferences);
+router.patch('/notifications/preferences', requireAuth, notifCtrl.updateNotificationPreferences);
 router.patch('/notifications/:id/read', requireAuth, notifCtrl.markAsRead);
 router.post('/notifications/read-all', requireAuth, notifCtrl.markAllAsRead);
 

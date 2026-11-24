@@ -68,6 +68,12 @@ const userSchema = new mongoose.Schema(
       whoCanMessageMe: { type: String, enum: ['everyone', 'peopleIFollow', 'nobody'], default: 'everyone' },
       readReceipts: { type: Boolean, default: true },
     },
+    notificationPreferences: {
+      replies: { type: Boolean, default: true },
+      likes: { type: Boolean, default: true },
+      follows: { type: Boolean, default: true },
+      mentions: { type: Boolean, default: true },
+    },
     followersCount: {
       type: Number,
       default: 0,

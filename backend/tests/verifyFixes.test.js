@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import { issueGuestPreviewToken, requireGuestPreviewOrAuth } from '../src/middleware/guestPreview.js';
 import { createRateLimiter } from '../src/middleware/rateLimiter.js';
 import {
@@ -186,6 +187,7 @@ const runTests = async () => {
   {
     const { User } = await import('../src/models/User.js');
     const { Post } = await import('../src/models/Post.js');
+    const { DiscussionContribution } = await import('../src/models/DiscussionContribution.js');
 
     assert.ok(User.schema.path('followers'), 'User schema must define followers array');
     assert.ok(User.schema.path('following'), 'User schema must define following array');
@@ -193,6 +195,13 @@ const runTests = async () => {
     assert.ok(Post.schema.path('likedBy'), 'Post schema must define likedBy array');
     assert.ok(Post.schema.path('commentCount'), 'Post schema must define commentCount');
     assert.ok(Post.schema.path('commentsCount'), 'Post schema must define commentsCount');
+    const deeplyNestedContribution = new DiscussionContribution({
+      discussionId: new mongoose.Types.ObjectId(),
+      authorId: new mongoose.Types.ObjectId(),
+      body: 'A reply beyond the previous depth limit',
+      depth: 4,
+    });
+    await deeplyNestedContribution.validate();
     console.log('✓ Test 6 Passed: User & Post schemas contain all relationship and interaction fields.');
   }
 

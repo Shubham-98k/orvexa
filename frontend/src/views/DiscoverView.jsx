@@ -5,6 +5,7 @@ import PostCard from '../components/discover/PostCard';
 import DiscussionCard from '../components/discover/DiscussionCard';
 import KnowledgeCard from '../components/discover/KnowledgeCard';
 import DiscussionDetailModal from '../components/discussion/DiscussionDetailModal';
+import PostDetailModal from '../components/discover/PostDetailModal';
 import Avatar from '../components/common/Avatar';
 import { apiGet } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
@@ -21,6 +22,8 @@ export default function DiscoverView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [authRequired, setAuthRequired] = useState(false);
+  const [activePost, setActivePost] = useState(null);
+  const [focusPostReply, setFocusPostReply] = useState(false);
 
   // Discussion modal
   const [activeDiscussion, setActiveDiscussion] = useState(null);
@@ -288,11 +291,42 @@ export default function DiscoverView() {
                 />
               );
             } else {
-              return <PostCard key={`post-${item._id}`} post={item} />;
+              return (
+                <PostCard
+                  key={`post-${item._id}`}
+                  post={item}
+                  onOpenDetail={(post, focusReply = false) => {
+                    setFocusPostReply(focusReply);
+                    setActivePost(post);
+                  }}
+                  onPostUpdated={(updatedPost) => {
+                    setFeedItems((items) => items.map((feedItem) => (
+                      feedItem._id === updatedPost._id ? { ...feedItem, ...updatedPost } : feedItem
+                    )));
+                  }}
+                />
+              );
             }
           })
         )}
       </div>
+
+      {activePost && (
+        <PostDetailModal
+          post={activePost}
+          focusReply={focusPostReply}
+          onClose={() => {
+            setActivePost(null);
+            setFocusPostReply(false);
+          }}
+          onPostUpdated={(updatedPost) => {
+            setActivePost(updatedPost);
+            setFeedItems((items) => items.map((feedItem) => (
+              feedItem._id === updatedPost._id ? { ...feedItem, ...updatedPost } : feedItem
+            )));
+          }}
+        />
+      )}
 
       {/* Discussion Detail Modal */}
       {activeDiscussion && (

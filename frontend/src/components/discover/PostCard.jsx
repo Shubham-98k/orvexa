@@ -3,7 +3,7 @@ import { Heart, MessageSquare, Bookmark, Share2 } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { apiPost } from '../../api/client';
 
-export default function PostCard({ post, onPostUpdated }) {
+export default function PostCard({ post, onPostUpdated, onOpenDetail }) {
   const [likes, setLikes] = useState(post.likeCount || 0);
   const [liked, setLiked] = useState(Boolean(post.hasLiked || post.isLiked));
   const [saved, setSaved] = useState(Boolean(post.isSaved || post.saved));
@@ -36,7 +36,10 @@ export default function PostCard({ post, onPostUpdated }) {
   };
 
   return (
-    <article className="border border-[#e9e9ed] rounded-2xl bg-white p-5 shadow-2xs hover:border-[#dedee5] hover:shadow-xs transition-all space-y-3 font-sans">
+    <article
+      onClick={() => onOpenDetail?.(post)}
+      className="border border-[#e9e9ed] rounded-2xl bg-white p-5 shadow-2xs hover:border-[#dedee5] hover:shadow-xs transition-all space-y-3 font-sans cursor-pointer"
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Avatar
@@ -72,14 +75,20 @@ export default function PostCard({ post, onPostUpdated }) {
         </div>
       )}
 
-      <div className="border-t border-[#f0f0f2] pt-3 flex items-center justify-between text-[11px] text-[#798192]">
+      <div
+        onClick={() => onOpenDetail?.(post)}
+        className="border-t border-[#f0f0f2] pt-3 flex items-center justify-between text-[11px] text-[#798192] cursor-pointer"
+      >
         <span>♡ {likes} likes</span>
         <span>{post.commentCount || 0} comments</span>
       </div>
 
       <div className="grid grid-cols-3 gap-2 border-t border-[#f0f0f2] pt-2">
         <button
-          onClick={handleLike}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleLike();
+          }}
           className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
             liked ? 'bg-[#fff0ee] text-[#d56560]' : 'text-[#737b8d] hover:bg-[#fff0ee] hover:text-[#d56560]'
           }`}
@@ -89,7 +98,10 @@ export default function PostCard({ post, onPostUpdated }) {
         </button>
 
         <button
-          onClick={() => {}}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenDetail?.(post, true);
+          }}
           className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold text-[#737b8d] hover:bg-[#f7f7f8] hover:text-[#17213f] transition-colors cursor-pointer"
         >
           <MessageSquare className="w-3.5 h-3.5" />
@@ -97,7 +109,10 @@ export default function PostCard({ post, onPostUpdated }) {
         </button>
 
         <button
-          onClick={handleSave}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleSave();
+          }}
           className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
             saved ? 'text-[#3f5ce8]' : 'text-[#737b8d] hover:bg-[#f7f7f8] hover:text-[#17213f]'
           }`}

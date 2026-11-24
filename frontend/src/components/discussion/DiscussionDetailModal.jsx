@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Bot, Send, Pencil, Trash2, Flag, Check, XCircle } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../../api/client';
@@ -25,6 +25,8 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingContributionId, setDeletingContributionId] = useState(null);
   const [reportingContributionId, setReportingContributionId] = useState(null);
+  const [replyingToContribution, setReplyingToContribution] = useState(null);
+  const contributionInputRef = useRef(null);
   const [votes, setVotes] = useState(
     discussion.voteCount !== undefined ? discussion.voteCount : (discussion.votes || 0)
   );
@@ -50,6 +52,12 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
         .finally(() => setLoading(false));
     }
   }, [discussion, onDiscussionUpdate]);
+
+  useEffect(() => {
+    if (discussion?._id) {
+      requestAnimationFrame(() => contributionInputRef.current?.focus());
+    }
+  }, [discussion?._id]);
 
   const handleUpvote = async () => {
     try {
@@ -80,10 +88,12 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
       setSubmitting(true);
       const res = await apiPost(`/discussions/${discussion._id}/contributions`, {
         body: inputBody.trim(),
+        parentContributionId: replyingToContribution?._id || null,
       });
       if (res?.contribution) {
         setContributions((prev) => [...prev, res.contribution]);
         setInputBody('');
+        setReplyingToContribution(null);
         const updatedDiscussion = {
           ...discussionData,
           contributionCount: res.contributionCount ?? res.commentsCount ?? discussionData.contributionCount + 1,
@@ -153,6 +163,118 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
   const totalContributors = discussionData.contributorCount !== undefined
     ? discussionData.contributorCount
     : new Set(contributions.map((c) => c.authorName)).size;
+
+  const ContributionThread = ({ contribution, depth = 0 }) => {
+    const childContributions = contributions.filter((candidate) => {
+      const parentId = candidate.parentContributionId?._id || candidate.parentContributionId;
+      return parentId?.toString() === contribution._id.toString();
+    });
+
+    return (
+      <div style={{ marginLeft: depth > 0 ? `${Math.min(depth, 3) * 18}px` : 0 }} className="space-y-2">
+        <div className="border border-[#e9e9ed] rounded-xl p-3.5 bg-[#fcfcfd] space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 font-bold text-[#17213f]">
+              <Avatar
+                initials={contribution.authorInitials || contribution.authorName?.slice(0, 2).toUpperCase() || 'OP'}
+                color={contribution.authorColor || 'blue'}
+                size="w-5 h-5 text-[9px]"
+              />
+              <span>{contribution.authorName}</span>
+            </div>
+            <span className="text-[10px] text-[#9298a7]">
+              {new Date(contribution.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          {isSameUser(contribution.authorId, user) ? (
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingContributionId(contribution._id);
+                  setEditBody(contribution.body);
+                }}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#737b8d] hover:text-[#3f5ce8]"
+                aria-label="Edit contribution"
+              >
+                <Pencil className="h-3 w-3" /> Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteContribution(contribution._id)}
+                disabled={deletingContributionId === contribution._id}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#c65d59] hover:text-red-700 disabled:opacity-50"
+                aria-label="Delete contribution"
+              >
+                <Trash2 className="h-3 w-3" />
+                {deletingContributionId === contribution._id ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          ) : (
+            user && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setReportingContributionId(contribution._id)}
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#737b8d] hover:text-[#c65d59]"
+                  aria-label="Report contribution"
+                >
+                  <Flag className="h-3 w-3" /> Report
+                </button>
+              </div>
+            )
+          )}
+          {editingContributionId === contribution._id ? (
+            <form onSubmit={(e) => handleUpdateContribution(e, contribution._id)} className="space-y-2">
+              <textarea
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                rows={3}
+                required
+                autoFocus
+                className="w-full px-3 py-2 rounded-lg border border-[#e9e9ed] text-xs focus:outline-none focus:border-[#3f5ce8]"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingContributionId(null);
+                    setEditBody('');
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-[#737b8d] hover:bg-[#f0f0f4]"
+                >
+                  <XCircle className="h-3 w-3" /> Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit || !editBody.trim()}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white bg-[#3f5ce8] hover:bg-[#324ecc] disabled:opacity-60"
+                >
+                  <Check className="h-3 w-3" /> {savingEdit ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-xs text-[#38425b] leading-relaxed whitespace-pre-line">{contribution.body}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setReplyingToContribution(contribution);
+              setInputBody('');
+              requestAnimationFrame(() => contributionInputRef.current?.focus());
+            }}
+            className="text-[10.5px] font-bold text-[#3f5ce8] hover:text-[#324ecc]"
+          >
+            Reply
+          </button>
+        </div>
+        {childContributions.map((child) => (
+          <ContributionThread key={child._id || child.id} contribution={child} depth={depth + 1} />
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -228,99 +350,28 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
               No contributions yet. Be the first to share a perspective!
             </div>
           ) : (
-            contributions.map((c) => (
-              <div key={c._id || c.id} className="border border-[#e9e9ed] rounded-xl p-3.5 bg-[#fcfcfd] space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 font-bold text-[#17213f]">
-                    <Avatar
-                      initials={c.authorInitials || c.authorName?.slice(0, 2).toUpperCase() || 'OP'}
-                      color={c.authorColor || 'blue'}
-                      size="w-5 h-5 text-[9px]"
-                    />
-                    <span>{c.authorName}</span>
-                  </div>
-                  <span className="text-[10px] text-[#9298a7]">
-                    {new Date(c.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-                {isSameUser(c.authorId, user) ? (
-                  <div className="flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingContributionId(c._id);
-                        setEditBody(c.body);
-                      }}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#737b8d] hover:text-[#3f5ce8]"
-                      aria-label="Edit contribution"
-                    >
-                      <Pencil className="h-3 w-3" /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteContribution(c._id)}
-                      disabled={deletingContributionId === c._id}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#c65d59] hover:text-red-700 disabled:opacity-50"
-                      aria-label="Delete contribution"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      {deletingContributionId === c._id ? 'Deleting…' : 'Delete'}
-                    </button>
-                  </div>
-                ) : (
-                  user && (
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setReportingContributionId(c._id)}
-                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#737b8d] hover:text-[#c65d59]"
-                        aria-label="Report contribution"
-                      >
-                        <Flag className="h-3 w-3" /> Report
-                      </button>
-                    </div>
-                  )
-                )}
-                {editingContributionId === c._id ? (
-                  <form onSubmit={(e) => handleUpdateContribution(e, c._id)} className="space-y-2">
-                    <textarea
-                      value={editBody}
-                      onChange={(e) => setEditBody(e.target.value)}
-                      rows={3}
-                      required
-                      autoFocus
-                      className="w-full px-3 py-2 rounded-lg border border-[#e9e9ed] text-xs focus:outline-none focus:border-[#3f5ce8]"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingContributionId(null);
-                          setEditBody('');
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-[#737b8d] hover:bg-[#f0f0f4]"
-                      >
-                        <XCircle className="h-3 w-3" /> Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={savingEdit || !editBody.trim()}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white bg-[#3f5ce8] hover:bg-[#324ecc] disabled:opacity-60"
-                      >
-                        <Check className="h-3 w-3" /> {savingEdit ? 'Saving…' : 'Save'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <p className="text-xs text-[#38425b] leading-relaxed whitespace-pre-line">{c.body}</p>
-                )}
-              </div>
-            ))
+            <div className="space-y-2">
+              {contributions
+                .filter((contribution) => !(contribution.parentContributionId?._id || contribution.parentContributionId))
+                .map((contribution) => (
+                  <ContributionThread key={contribution._id || contribution.id} contribution={contribution} />
+                ))}
+            </div>
+          )}
+
+          {replyingToContribution && (
+            <div className="flex items-center justify-between rounded-lg bg-[#f7f7f8] px-3 py-2 text-[10.5px] text-[#737b8d]">
+              <span>Replying to <b className="text-[#17213f]">{replyingToContribution.authorName}</b></span>
+              <button type="button" onClick={() => setReplyingToContribution(null)} className="text-[#737b8d] hover:text-[#17213f]">
+                Cancel
+              </button>
+            </div>
           )}
 
           {/* Contribution Composer */}
           <form onSubmit={handleAddContribution} className="pt-2 flex items-center gap-2">
             <input
+              ref={contributionInputRef}
               type="text"
               required
               value={inputBody}

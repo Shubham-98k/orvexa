@@ -2,19 +2,53 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Bell, CheckCheck } from 'lucide-react';
 import Avatar from '../components/common/Avatar';
-import { apiGet, apiPost } from '../api/client';
+import { apiGet, apiPatch, apiPost } from '../api/client';
 
 export default function ActivityView() {
   const { showToast } = useOutletContext();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [preferences, setPreferences] = useState({
+    replies: true,
+    likes: true,
+    follows: true,
+    mentions: true,
+  });
+  const [savingPreferences, setSavingPreferences] = useState(false);
 
   useEffect(() => {
-    apiGet('/notifications')
-      .then((res) => setNotifications(res?.notifications || []))
+    Promise.all([
+      apiGet('/notifications'),
+      apiGet('/notifications/preferences'),
+    ])
+      .then(([notificationsRes, preferencesRes]) => {
+        setNotifications(notificationsRes?.notifications || []);
+        setPreferences(preferencesRes?.preferences || {
+          replies: true,
+          likes: true,
+          follows: true,
+          mentions: true,
+        });
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const updatePreference = async (key) => {
+    const nextPreferences = { ...preferences, [key]: !preferences[key] };
+    setPreferences(nextPreferences);
+    setSavingPreferences(true);
+    try {
+      const res = await apiPatch('/notifications/preferences', nextPreferences);
+      setPreferences(res.preferences);
+      showToast(`${key === 'replies' ? 'Reply' : key[0].toUpperCase() + key.slice(1)} notifications ${nextPreferences[key] ? 'enabled' : 'disabled'}`);
+    } catch (err) {
+      setPreferences(preferences);
+      showToast(err.message || 'Unable to update notification settings');
+    } finally {
+      setSavingPreferences(false);
+    }
+  };
 
   const handleMarkAllRead = async () => {
     try {
@@ -50,6 +84,42 @@ export default function ActivityView() {
             <span>Mark all read</span>
           </button>
         )}
+      </div>
+
+      <div className="border border-[#e9e9ed] rounded-2xl bg-white p-4 sm:p-5 space-y-3">
+        <div>
+          <h2 className="text-sm font-bold text-[#17213f]">Notification settings</h2>
+          <p className="text-xs text-[#737b8d] mt-1">Choose which activity appears in this tab.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            ['replies', 'Replies and contributions'],
+            ['likes', 'Likes'],
+            ['follows', 'New followers'],
+            ['mentions', 'Mentions'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              disabled={savingPreferences}
+              onClick={() => updatePreference(key)}
+              className="flex items-center justify-between rounded-xl border border-[#e9e9ed] px-3.5 py-3 text-xs font-semibold text-[#38425b] hover:bg-[#fafafb]"
+            >
+              <span>{label}</span>
+              <span
+                className={`relative h-5 w-9 rounded-full transition-colors ${
+                  preferences[key] ? 'bg-[#3f5ce8]' : 'bg-[#d8dae3]'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                    preferences[key] ? 'left-[18px]' : 'left-0.5'
+                  }`}
+                />
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
