@@ -130,7 +130,125 @@ const runTests = async () => {
     console.log('✓ Test 5 Passed: Truthful counting distinguishes contributions from distinct contributors.');
   }
 
-  console.log('\nAll 5 automated unit/integration checks PASSED successfully!');
+  // Test 6: User & Post schema fields for following, followers, and likes
+  {
+    const { User } = await import('../src/models/User.js');
+    const { Post } = await import('../src/models/Post.js');
+
+    assert.ok(User.schema.path('followers'), 'User schema must define followers array');
+    assert.ok(User.schema.path('following'), 'User schema must define following array');
+    assert.ok(Post.schema.path('likes'), 'Post schema must define likes array');
+    assert.ok(Post.schema.path('likedBy'), 'Post schema must define likedBy array');
+    assert.ok(Post.schema.path('commentCount'), 'Post schema must define commentCount');
+    assert.ok(Post.schema.path('commentsCount'), 'Post schema must define commentsCount');
+    console.log('✓ Test 6 Passed: User & Post schemas contain all relationship and interaction fields.');
+  }
+
+  // Test 7: Feed controllers require authentication for "following" mode
+  {
+    const { getPosts } = await import('../src/controllers/postController.js');
+    const { getDiscussions } = await import('../src/controllers/discussionController.js');
+    const { getKnowledgeArticles } = await import('../src/controllers/knowledgeController.js');
+
+    const fakeReq = { query: { mode: 'following' }, user: null };
+    const createMockRes = () => {
+      let code = null;
+      let body = null;
+      return {
+        status(c) {
+          code = c;
+          return this;
+        },
+        json(b) {
+          body = b;
+          return this;
+        },
+        getCode: () => code,
+        getBody: () => body,
+      };
+    };
+
+    const resPost = createMockRes();
+    await getPosts(fakeReq, resPost, () => {});
+    assert.equal(resPost.getCode(), 401, 'getPosts(mode=following) without auth must return 401');
+    assert.equal(resPost.getBody()?.code, 'AUTHENTICATION_REQUIRED');
+
+    const resDisc = createMockRes();
+    await getDiscussions(fakeReq, resDisc, () => {});
+    assert.equal(resDisc.getCode(), 401, 'getDiscussions(mode=following) without auth must return 401');
+    assert.equal(resDisc.getBody()?.code, 'AUTHENTICATION_REQUIRED');
+
+    const resKnow = createMockRes();
+    await getKnowledgeArticles(fakeReq, resKnow, () => {});
+    assert.equal(resKnow.getCode(), 401, 'getKnowledgeArticles(mode=following) without auth must return 401');
+    assert.equal(resKnow.getBody()?.code, 'AUTHENTICATION_REQUIRED');
+
+    console.log('✓ Test 7 Passed: All feed endpoints enforce authentication on following mode with 401.');
+  }
+
+  // Test 8: Admin overview endpoint verifies platformRole === 'admin'
+  {
+    const { getAdminOverview } = await import('../src/controllers/adminController.js');
+
+    const regularUserReq = {
+      user: { _id: 'fake_user_1', platformRole: 'user', role: 'user' },
+    };
+    let statusCode = null;
+    let jsonBody = null;
+    const mockRes = {
+      status(c) {
+        statusCode = c;
+        return this;
+      },
+      json(b) {
+        jsonBody = b;
+        return this;
+      },
+    };
+
+    await getAdminOverview(regularUserReq, mockRes, () => {});
+    assert.equal(statusCode, 403, 'Regular user must receive 403 Forbidden from admin overview');
+    assert.equal(jsonBody?.error, 'Admin access required');
+
+    console.log('✓ Test 8 Passed: Admin overview correctly restricts non-admin users with 403.');
+  }
+
+  // Test 9: Direct messaging startConversation validates input and self-messaging
+  {
+    const { startConversation } = await import('../src/controllers/messageController.js');
+
+    const createMockRes = () => {
+      let code = null;
+      let body = null;
+      return {
+        status(c) {
+          code = c;
+          return this;
+        },
+        json(b) {
+          body = b;
+          return this;
+        },
+        getCode: () => code,
+        getBody: () => body,
+      };
+    };
+
+    // Missing recipient
+    const resNoRecipient = createMockRes();
+    await startConversation({ user: { _id: '507f1f77bcf86cd799439011' }, body: {} }, resNoRecipient, () => {});
+    assert.equal(resNoRecipient.getCode(), 400, 'startConversation must reject missing recipient');
+
+    // Self recipient
+    const selfId = '507f1f77bcf86cd799439011';
+    const resSelf = createMockRes();
+    await startConversation({ user: { _id: selfId }, body: { recipientId: selfId } }, resSelf, () => {});
+    assert.equal(resSelf.getCode(), 400, 'startConversation must reject self conversation');
+
+    console.log('✓ Test 9 Passed: Direct conversation validation strictly prevents invalid or self conversations.');
+  }
+
+  console.log('\nAll 9 automated unit/integration checks PASSED successfully!');
 };
 
 runTests().catch((err) => {

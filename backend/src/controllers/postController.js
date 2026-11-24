@@ -21,6 +21,9 @@ export const getPosts = async (req, res, next) => {
       }
       const currentUser = await User.findById(req.user._id);
       const followingIds = currentUser?.following || [];
+      if (followingIds.length === 0) {
+        return res.json({ posts: [] });
+      }
       query.authorId = { $in: followingIds };
     }
 
@@ -28,10 +31,12 @@ export const getPosts = async (req, res, next) => {
     let sort = { createdAt: -1 }; // default "Latest"
     if (mode === 'trending') {
       // Trending: engagement with recent bias
-      sort = { likeCount: -1, commentsCount: -1, createdAt: -1 };
+      sort = { likeCount: -1, commentCount: -1, createdAt: -1 };
     } else if (mode === 'for-you' || mode === 'for you') {
       // Personalized or non-personalized public ranking
       sort = { likeCount: -1, createdAt: -1 };
+    } else if (mode === 'latest') {
+      sort = { createdAt: -1 };
     }
 
     const posts = await Post.find(query)
@@ -40,11 +45,22 @@ export const getPosts = async (req, res, next) => {
       .limit(Math.min(50, parseInt(limit, 10)))
       .lean();
 
-    const mapped = posts.map((p) => ({
-      ...p,
-      hasLiked: req.user ? p.likes?.some((l) => l.toString() === req.user._id.toString()) : false,
-      likeCount: p.likeCount || 0,
-    }));
+    const mapped = posts.map((p) => {
+      const hasLiked = req.user
+        ? Boolean(
+            p.likes?.some((l) => l.toString() === req.user._id.toString()) ||
+              p.likedBy?.some((l) => l.toString() === req.user._id.toString())
+          )
+        : false;
+      return {
+        ...p,
+        hasLiked,
+        isLiked: hasLiked,
+        likeCount: p.likeCount || 0,
+        commentCount: p.commentCount || p.commentsCount || 0,
+        commentsCount: p.commentsCount || p.commentCount || 0,
+      };
+    });
 
     res.json({ posts: mapped });
   } catch (err) {
@@ -71,7 +87,9 @@ export const createPost = async (req, res, next) => {
       circleName: circleName || null,
       likeCount: 0,
       likes: [],
+      likedBy: [],
       commentsCount: 0,
+      commentCount: 0,
     });
 
     res.status(201).json({ post });
@@ -89,21 +107,26 @@ export const toggleLikePost = async (req, res, next) => {
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
     if (!post.likes) post.likes = [];
+    if (!post.likedBy) post.likedBy = [];
+
     const index = post.likes.findIndex((l) => l.toString() === userId.toString());
+    const likedByIdx = post.likedBy.findIndex((l) => l.toString() === userId.toString());
     let hasLiked = false;
 
-    if (index > -1) {
-      post.likes.splice(index, 1);
+    if (index > -1 || likedByIdx > -1) {
+      if (index > -1) post.likes.splice(index, 1);
+      if (likedByIdx > -1) post.likedBy.splice(likedByIdx, 1);
       post.likeCount = Math.max(0, post.likes.length);
       hasLiked = false;
     } else {
       post.likes.push(userId);
+      post.likedBy.push(userId);
       post.likeCount = post.likes.length;
       hasLiked = true;
     }
 
     await post.save();
-    res.json({ likeCount: post.likeCount, hasLiked });
+    res.json({ likeCount: post.likeCount, hasLiked, isLiked: hasLiked });
   } catch (err) {
     next(err);
   }

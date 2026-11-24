@@ -122,6 +122,10 @@ router.get('/search', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateL
 // 13. ADMIN & MODERATION
 // ==========================================
 router.get('/admin/overview', requireAuth, adminCtrl.getAdminOverview);
+router.get('/admin/users', requireAuth, adminCtrl.getAdminUsers);
+router.patch('/admin/users/:userId/role', requireAuth, adminCtrl.updateUserRole);
+router.patch('/admin/users/:userId/status', requireAuth, adminCtrl.updateUserStatus);
+router.patch('/admin/reports/:reportId', requireAuth, adminCtrl.updateReport);
 router.post('/reports', requireAuth, adminCtrl.submitReport);
 
 // ==========================================

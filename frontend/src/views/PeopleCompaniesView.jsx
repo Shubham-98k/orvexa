@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Users, Building2, UserPlus, UserCheck, ExternalLink } from 'lucide-react';
+import { Search, Users, Building2, UserPlus, UserCheck, ExternalLink, MessageSquare } from 'lucide-react';
 import Avatar from '../components/common/Avatar';
 import { apiGet, apiPost } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
@@ -62,6 +62,28 @@ export default function PeopleCompaniesView() {
       );
     } catch (err) {
       alert(err.message || 'Action failed');
+    }
+  };
+
+  const handleDirectMessageUser = async (person) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const res = await apiPost('/conversations', { recipientId: person._id });
+      if (res?.conversation?._id) {
+        navigate('/messages', {
+          state: {
+            conversationId: res.conversation._id,
+            recipient: person,
+          },
+        });
+      } else {
+        navigate(`/messages?user=${person.username || person._id}`);
+      }
+    } catch (err) {
+      alert(err.message || 'Unable to open message thread.');
     }
   };
 
@@ -184,26 +206,35 @@ export default function PeopleCompaniesView() {
                     </div>
 
                     {!isSelf && (
-                      <button
-                        onClick={() => handleToggleFollowUser(person._id)}
-                        className={`text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer ${
-                          person.isFollowing
-                            ? 'bg-[#f7f7f8] hover:bg-[#fee2e2] hover:text-red-600 text-[#17213f] border border-[#e9e9ed]'
-                            : 'bg-[#3f5ce8] hover:bg-[#324ecc] text-white shadow-[0_2px_0_#2b41ab]'
-                        }`}
-                      >
-                        {person.isFollowing ? (
-                          <>
-                            <UserCheck className="w-3.5 h-3.5" />
-                            <span>Following</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>Follow</span>
-                          </>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleDirectMessageUser(person)}
+                          title={`Message ${person.displayName}`}
+                          className="text-xs font-bold p-1.5 rounded-xl border border-[#e9e9ed] bg-white text-[#737b8d] hover:text-[#3f5ce8] hover:bg-[#f7f7f8] transition-colors cursor-pointer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleToggleFollowUser(person._id)}
+                          className={`text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer ${
+                            person.isFollowing
+                              ? 'bg-[#f7f7f8] hover:bg-[#fee2e2] hover:text-red-600 text-[#17213f] border border-[#e9e9ed]'
+                              : 'bg-[#3f5ce8] hover:bg-[#324ecc] text-white shadow-[0_2px_0_#2b41ab]'
+                          }`}
+                        >
+                          {person.isFollowing ? (
+                            <>
+                              <UserCheck className="w-3.5 h-3.5" />
+                              <span>Following</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>Follow</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
                   </div>
 

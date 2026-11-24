@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, MessageSquare, Bookmark, Share2 } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { apiPost } from '../../api/client';
 
 export default function PostCard({ post, onPostUpdated }) {
   const [likes, setLikes] = useState(post.likeCount || 0);
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [liked, setLiked] = useState(Boolean(post.hasLiked || post.isLiked));
+  const [saved, setSaved] = useState(Boolean(post.isSaved || post.saved));
+
+  useEffect(() => {
+    setLikes(post.likeCount || 0);
+    setLiked(Boolean(post.hasLiked || post.isLiked));
+    setSaved(Boolean(post.isSaved || post.saved));
+  }, [post.likeCount, post.hasLiked, post.isLiked, post.isSaved, post.saved]);
 
   const handleLike = async () => {
     try {
       const res = await apiPost(`/posts/${post._id}/like`, {});
       setLikes(res.likeCount);
-      setLiked(res.isLiked);
+      setLiked(res.hasLiked ?? res.isLiked);
     } catch {
       // toggle locally if offline
       setLiked((prev) => !prev);

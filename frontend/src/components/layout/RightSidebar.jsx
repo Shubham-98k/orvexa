@@ -36,7 +36,7 @@ export default function RightSidebar({ onSelectTopic, onOpenCreateIdea }) {
       <div className="border border-[#e9e9ed] rounded-2xl p-4 space-y-3 shadow-2xs">
         <div className="flex items-center justify-between text-xs font-bold text-[#17213f]">
           <span>People to follow</span>
-          <Link to="/app?tab=people" className="text-[11px] text-[#3f5ce8] hover:underline">
+          <Link to="/people-companies" className="text-[11px] text-[#3f5ce8] hover:underline">
             View all
           </Link>
         </div>
@@ -62,7 +62,7 @@ export default function RightSidebar({ onSelectTopic, onOpenCreateIdea }) {
                   <div className="text-[10px] text-[#737b8d] truncate">@{person.username}</div>
                 </div>
                 <Link
-                  to={`/profile?username=${person.username}`}
+                  to={`/profile/${person.username}`}
                   className="text-[11px] font-bold text-[#3f5ce8] hover:underline"
                 >
                   View

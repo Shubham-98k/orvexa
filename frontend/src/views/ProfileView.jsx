@@ -4,7 +4,7 @@ import Avatar from '../components/common/Avatar';
 import PostCard from '../components/discover/PostCard';
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { Edit3, Check, UserPlus, UserCheck, Shield } from 'lucide-react';
+import { Edit3, Check, UserPlus, UserCheck, Shield, MessageSquare } from 'lucide-react';
 
 export default function ProfileView() {
   const { username: routeUsername } = useParams();
@@ -25,6 +25,33 @@ export default function ProfileView() {
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
+  const [startingChat, setStartingChat] = useState(false);
+
+  const handleDirectMessage = async () => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    const targetId = profileData?._id || profileData?.id || effectiveUsername;
+    setStartingChat(true);
+    try {
+      const res = await apiPost('/conversations', { recipientId: targetId });
+      if (res?.conversation?._id) {
+        navigate('/messages', {
+          state: {
+            conversationId: res.conversation._id,
+            recipient: profileData,
+          },
+        });
+      } else {
+        navigate(`/messages?user=${profileData?.username || targetId}`);
+      }
+    } catch (err) {
+      alert(err.message || 'Unable to open message thread.');
+    } finally {
+      setStartingChat(false);
+    }
+  };
 
   // Follow states for others
   const [isFollowing, setIsFollowing] = useState(false);
@@ -151,26 +178,36 @@ export default function ProfileView() {
                 </button>
               )
             ) : (
-              <button
-                onClick={handleToggleFollow}
-                className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-                  isFollowing
-                    ? 'bg-[#f7f7f8] hover:bg-[#fee2e2] hover:text-red-600 text-[#17213f] border border-[#e9e9ed]'
-                    : 'bg-[#3f5ce8] hover:bg-[#324ecc] text-white shadow-[0_2px_0_#2b41ab]'
-                }`}
-              >
-                {isFollowing ? (
-                  <>
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>Following</span>
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Follow</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDirectMessage}
+                  disabled={startingChat}
+                  className="bg-white hover:bg-[#f7f7f8] text-[#17213f] text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 border border-[#e9e9ed] shadow-2xs transition-all cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-[#3f5ce8]" />
+                  <span>{startingChat ? 'Connecting...' : 'Message'}</span>
+                </button>
+                <button
+                  onClick={handleToggleFollow}
+                  className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isFollowing
+                      ? 'bg-[#f7f7f8] hover:bg-[#fee2e2] hover:text-red-600 text-[#17213f] border border-[#e9e9ed]'
+                      : 'bg-[#3f5ce8] hover:bg-[#324ecc] text-white shadow-[0_2px_0_#2b41ab]'
+                  }`}
+                >
+                  {isFollowing ? (
+                    <>
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Following</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Follow</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
         </div>

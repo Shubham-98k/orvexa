@@ -5,7 +5,7 @@ export const getConversations = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const conversations = await Conversation.find({ participants: userId })
-      .populate('participants', 'displayName username initials avatarColor')
+      .populate('participants', 'displayName username initials avatarColor avatar')
       .sort({ lastMessageAt: -1 });
 
     res.json({ conversations });
@@ -57,17 +57,45 @@ export const startConversation = async (req, res, next) => {
     const { recipientId } = req.body;
     const userId = req.user._id;
 
+    if (!recipientId) {
+      return res.status(400).json({ error: 'Recipient is required' });
+    }
+
+    const cleanRecipient = recipientId.toString().trim();
+    if (cleanRecipient === userId.toString()) {
+      return res.status(400).json({ error: 'Cannot start conversation with yourself' });
+    }
+
+    let targetUser = null;
+
+    if (cleanRecipient.match(/^[0-9a-fA-F]{24}$/)) {
+      targetUser = await User.findById(cleanRecipient);
+    }
+    if (!targetUser) {
+      targetUser = await User.findOne({ username: cleanRecipient.toLowerCase() });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Recipient user not found' });
+    }
+
+    const targetUserId = targetUser._id;
+
+    if (targetUserId.toString() === userId.toString()) {
+      return res.status(400).json({ error: 'Cannot start conversation with yourself' });
+    }
+
     let conv = await Conversation.findOne({
-      participants: { $all: [userId, recipientId], $size: 2 },
-    }).populate('participants', 'displayName username initials avatarColor');
+      participants: { $all: [userId, targetUserId], $size: 2 },
+    }).populate('participants', 'displayName username initials avatarColor avatar');
 
     if (!conv) {
       conv = await Conversation.create({
-        participants: [userId, recipientId],
+        participants: [userId, targetUserId],
         lastMessage: 'Conversation started',
         lastMessageAt: new Date(),
       });
-      conv = await Conversation.findById(conv._id).populate('participants', 'displayName username initials avatarColor');
+      conv = await Conversation.findById(conv._id).populate('participants', 'displayName username initials avatarColor avatar');
     }
 
     res.status(201).json({ conversation: conv });

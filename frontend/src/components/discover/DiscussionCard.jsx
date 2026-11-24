@@ -1,17 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Avatar from '../common/Avatar';
 import { apiPost } from '../../api/client';
 
 export default function DiscussionCard({ discussion, onOpenDetail }) {
   const [votes, setVotes] = useState(discussion.votes || 0);
-  const [voted, setVoted] = useState(false);
+  const [voted, setVoted] = useState(Boolean(discussion.hasUpvoted || discussion.voted));
+
+  useEffect(() => {
+    setVotes(discussion.votes || 0);
+    setVoted(Boolean(discussion.hasUpvoted || discussion.voted));
+  }, [discussion.votes, discussion.hasUpvoted, discussion.voted]);
 
   const handleUpvote = async (e) => {
     e.stopPropagation();
     try {
       const res = await apiPost(`/discussions/${discussion._id}/upvote`, {});
       setVotes(res.votes);
-      setVoted(res.voted);
+      setVoted(res.hasUpvoted ?? res.voted);
     } catch {
       setVoted((prev) => !prev);
       setVotes((prev) => (voted ? prev - 1 : prev + 1));
