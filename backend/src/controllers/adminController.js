@@ -7,9 +7,22 @@ import { Circle } from '../models/Circle.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import mongoose from 'mongoose';
 
+const isStaff = (user) => {
+  return (
+    user?.platformRole === 'admin' ||
+    user?.platformRole === 'moderator' ||
+    user?.role === 'admin' ||
+    user?.role === 'moderator'
+  );
+};
+
+const isAdmin = (user) => {
+  return user?.platformRole === 'admin' || user?.role === 'admin';
+};
+
 export const getAdminOverview = async (req, res, next) => {
   try {
-    if (req.user?.platformRole !== 'admin' && req.user?.role !== 'admin') {
+    if (!isStaff(req.user)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -50,8 +63,8 @@ export const getAdminOverview = async (req, res, next) => {
 
 export const getAdminUsers = async (req, res, next) => {
   try {
-    if (req.user?.platformRole !== 'admin' && req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+    if (!isStaff(req.user)) {
+      return res.status(403).json({ error: 'Staff access required' });
     }
 
     const { q, role, page = 1, limit = 50 } = req.query;
@@ -89,10 +102,41 @@ export const getAdminUsers = async (req, res, next) => {
   }
 };
 
+export const getAdminUserContent = async (req, res, next) => {
+  try {
+    if (!isStaff(req.user)) {
+      return res.status(403).json({ error: 'Staff access required' });
+    }
+    const { userId } = req.params;
+    const targetUser = await User.findById(userId)
+      .select('username displayName email avatar avatarColor initials bio headline platformRole accountStatus createdAt')
+      .lean();
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const [posts, discussions, knowledge] = await Promise.all([
+      Post.find({ authorId: userId, status: { $ne: 'deleted' } }).sort({ createdAt: -1 }).lean(),
+      Discussion.find({ authorId: userId, status: { $ne: 'deleted' } }).sort({ createdAt: -1 }).lean(),
+      KnowledgeArticle.find({ authorId: userId, status: { $ne: 'deleted' } }).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    res.json({
+      user: targetUser,
+      posts,
+      discussions,
+      knowledge,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const updateUserRole = async (req, res, next) => {
   try {
-    if (req.user?.platformRole !== 'admin' && req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only full administrators can change user roles' });
     }
 
     const { userId } = req.params;

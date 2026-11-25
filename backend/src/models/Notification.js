@@ -18,11 +18,19 @@ const notificationSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['follow', 'like', 'comment', 'contribution', 'mention', 'knowledge_published', 'circle_join'],
+      enum: ['follow', 'like', 'comment', 'contribution', 'mention', 'knowledge_published', 'circle_join', 'content_deleted', 'moderation', 'system'],
     },
     title: {
       type: String,
       required: true,
+    },
+    message: {
+      type: String,
+      default: '',
+    },
+    reason: {
+      type: String,
+      default: '',
     },
     targetType: String,
     targetId: mongoose.Schema.Types.ObjectId,

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, PenLine, BookOpen, Layers, Filter, Sparkles, ChevronRight } from 'lucide-react';
+import { Search, PenLine, BookOpen, Layers, Filter, Sparkles, ChevronRight, Trash2, X, Plus } from 'lucide-react';
 import KnowledgeCard from '../components/discover/KnowledgeCard';
-import { apiGet } from '../api/client';
+import { apiGet, apiPost, apiDelete } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
 const FORMATS = ['All', 'Guide', 'Explainer', 'Research', 'Perspective', 'Notes'];
@@ -21,6 +21,9 @@ export default function KnowledgeView() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [draftsCount, setDraftsCount] = useState(0);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const [draftsList, setDraftsList] = useState([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(false);
 
   // Filters & Search
   const [selectedFormat, setSelectedFormat] = useState('All');
@@ -40,17 +43,63 @@ export default function KnowledgeView() {
   }, [searchQuery]);
 
   // Load user drafts count if logged in
-  useEffect(() => {
+  const refreshDraftsCount = useCallback(() => {
     if (user) {
       apiGet('/knowledge/drafts')
         .then((res) => {
           if (Array.isArray(res?.drafts)) {
             setDraftsCount(res.drafts.length);
+            setDraftsList(res.drafts);
           }
         })
         .catch(() => {});
     }
   }, [user]);
+
+  useEffect(() => {
+    refreshDraftsCount();
+  }, [refreshDraftsCount]);
+
+  const handleOpenDraftsModal = async () => {
+    setShowDraftsModal(true);
+    setLoadingDrafts(true);
+    try {
+      const res = await apiGet('/knowledge/drafts');
+      if (Array.isArray(res?.drafts)) {
+        setDraftsList(res.drafts);
+        setDraftsCount(res.drafts.length);
+      }
+    } catch {
+    } finally {
+      setLoadingDrafts(false);
+    }
+  };
+
+  const handleDeleteDraft = async (e, draftId) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this draft? This cannot be undone.')) return;
+    try {
+      await apiDelete(`/knowledge/drafts/${draftId}`);
+      const updated = draftsList.filter((d) => d._id !== draftId);
+      setDraftsList(updated);
+      setDraftsCount(updated.length);
+    } catch (err) {
+      alert(err.message || 'Failed to delete draft');
+    }
+  };
+
+  const handleStartNewArticle = async () => {
+    try {
+      const res = await apiPost('/knowledge/drafts', { title: 'Untitled Knowledge Article' });
+      if (res?.draft?._id) {
+        navigate(`/knowledge/studio/${res.draft._id}`);
+      } else {
+        navigate('/knowledge/studio');
+      }
+    } catch {
+      navigate('/knowledge/studio');
+    }
+  };
 
   // Fetch articles from backend API
   const fetchArticles = useCallback(() => {
@@ -97,7 +146,8 @@ export default function KnowledgeView() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {user && draftsCount > 0 && (
             <button
-              onClick={() => navigate('/knowledge/studio')}
+              type="button"
+              onClick={handleOpenDraftsModal}
               className="bg-[#f0f4ff] hover:bg-[#e6edff] text-[#3f5ce8] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5" />
@@ -106,7 +156,8 @@ export default function KnowledgeView() {
           )}
 
           <button
-            onClick={() => navigate('/knowledge/studio')}
+            type="button"
+            onClick={handleStartNewArticle}
             className="bg-[#3f5ce8] hover:bg-[#324ecc] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-2"
           >
             <PenLine className="w-3.5 h-3.5" />
@@ -281,6 +332,110 @@ export default function KnowledgeView() {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Drafts Drawer / Modal */}
+      {showDraftsModal && (
+        <div
+          onClick={(e) => e.target === e.currentTarget && setShowDraftsModal(false)}
+          className="fixed inset-0 bg-[#17213f]/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 font-sans"
+        >
+          <div className="bg-white rounded-3xl p-6 w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl border border-[#e9e9ed] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
+              <div>
+                <h3 className="text-lg font-black text-[#17213f]">Your Knowledge Drafts</h3>
+                <p className="text-xs text-[#737b8d]">Continue editing your unpublished articles</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDraftsModal(false)}
+                className="p-1.5 text-[#737b8d] hover:text-[#17213f] rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {loadingDrafts ? (
+              <div className="py-12 text-center text-xs text-[#8b92a1]">Loading drafts...</div>
+            ) : draftsList.length === 0 ? (
+              <div className="py-10 text-center space-y-3">
+                <p className="text-xs text-[#8b92a1]">You have no active drafts.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDraftsModal(false);
+                    handleStartNewArticle();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#3f5ce8] text-white rounded-xl text-xs font-bold"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Start New Article
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {draftsList.map((d) => (
+                  <div
+                    key={d._id}
+                    className="p-3.5 rounded-2xl border border-[#e9e9ed] hover:border-[#3f5ce8]/30 transition-all flex items-center justify-between gap-3 group"
+                  >
+                    <div
+                      className="cursor-pointer flex-1 min-w-0"
+                      onClick={() => {
+                        setShowDraftsModal(false);
+                        navigate(`/knowledge/studio/${d._id}`);
+                      }}
+                    >
+                      <h4 className="text-sm font-bold text-[#17213f] group-hover:text-[#3f5ce8] truncate transition-colors">
+                        {d.title || 'Untitled Draft'}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[#8b92a1]">
+                        <span className="capitalize">{d.format || 'guide'}</span>
+                        <span>•</span>
+                        <span>{d.category || 'General'}</span>
+                        <span>•</span>
+                        <span>{new Date(d.updatedAt || d.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDraftsModal(false);
+                          navigate(`/knowledge/studio/${d._id}`);
+                        }}
+                        className="px-3 py-1.5 bg-[#f0f4ff] hover:bg-[#e6edff] text-[#3f5ce8] text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteDraft(e, d._id)}
+                        className="p-1.5 text-[#8b92a1] hover:text-[#d6554f] hover:bg-[#fff0ee] rounded-xl cursor-pointer transition-colors"
+                        title="Delete draft"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDraftsModal(false);
+                      handleStartNewArticle();
+                    }}
+                    className="w-full py-2.5 border border-dashed border-[#e9e9ed] hover:border-[#3f5ce8] hover:text-[#3f5ce8] text-xs font-bold text-[#737b8d] rounded-2xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Create another draft
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -55,9 +55,9 @@ export default function SignupPage() {
       <div className="w-full max-w-[460px] bg-white rounded-3xl p-7 sm:p-9 border border-[#e9e9ed] shadow-[0_12px_40px_rgba(23,33,63,0.06)]">
         {/* Brand header */}
         <div className="text-center mb-6">
-          <Link to="/" className="inline-flex items-center gap-1.5 group">
+          <Link to="/" className="inline-flex items-center gap-2 group">
+            <img src="/orvexa-logo.png" alt="Orvexa" className="w-8 h-8 rounded-xl object-contain shadow-xs transition-transform duration-200 group-hover:scale-105" />
             <span className="text-2xl font-black tracking-[-1.5px] text-[#17213f]">orvexa</span>
-            <span className="text-[#e66c68] text-xl font-black transition-transform duration-300 group-hover:rotate-45">✳</span>
           </Link>
           <h1 className="text-xl font-black text-[#17213f] mt-3 tracking-tight">Create your Orvexa account</h1>
           <p className="text-xs text-[#737b8d] mt-1">Join the community to discover, share ideas, and publish knowledge.</p>

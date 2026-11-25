@@ -83,14 +83,19 @@ export const getPostById = async (req, res, next) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
+    const userId = req.user?._id;
     const [saved, hasLiked, replies] = await Promise.all([
-      Save.exists({
-        userId: req.user._id,
-        itemType: 'post',
-        itemId: post._id,
-      }),
-      post.likes?.some((id) => id.toString() === req.user._id.toString()) ||
-        post.likedBy?.some((id) => id.toString() === req.user._id.toString()),
+      userId
+        ? Save.exists({
+            userId,
+            itemType: 'post',
+            itemId: post._id,
+          })
+        : Promise.resolve(false),
+      userId
+        ? (post.likes?.some((id) => id.toString() === userId.toString()) ||
+            post.likedBy?.some((id) => id.toString() === userId.toString()))
+        : false,
       PostReply.find({ postId: post._id }).sort({ createdAt: 1 }).lean(),
     ]);
 
@@ -308,6 +313,57 @@ export const savePost = async (req, res, next) => {
       },
     });
     res.json({ saved: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deletePost = async (req, res, next) => {
+  try {
+    const { postId } = req.params;
+    const { reason } = req.body || {};
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const isOwner = req.user && String(post.authorId) === String(req.user._id);
+    const isModOrAdmin = req.user && (
+      req.user.platformRole === 'admin' ||
+      req.user.platformRole === 'moderator' ||
+      req.user.role === 'admin' ||
+      req.user.role === 'moderator'
+    );
+
+    if (!isOwner && !isModOrAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to delete this post' });
+    }
+
+    post.status = 'deleted';
+    await post.save();
+
+    // If deleted by moderator/admin, send notification to author explaining reason
+    if (isModOrAdmin && !isOwner && post.authorId) {
+      try {
+        await Notification.create({
+          recipientId: post.authorId,
+          actorId: req.user._id,
+          actorName: req.user.displayName || req.user.username || 'Moderation Team',
+          actorInitials: req.user.initials || 'MOD',
+          type: 'content_deleted',
+          title: 'Post removed by moderation',
+          message: reason || 'Your post was removed by moderation for violating community standards.',
+          reason: reason || 'Violating community guidelines',
+          targetType: 'post',
+          targetId: post._id,
+          timeText: 'Just now',
+        });
+      } catch (notifErr) {
+        console.error('Failed to create moderation notification:', notifErr);
+      }
+    }
+
+    res.json({ success: true, message: 'Post deleted successfully' });
   } catch (err) {
     next(err);
   }

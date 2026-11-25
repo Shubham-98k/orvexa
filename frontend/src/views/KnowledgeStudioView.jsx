@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Save, Eye, Check, AlertCircle, BookOpen, Layers, Sparkles, Send } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Check, AlertCircle, BookOpen, Layers, Sparkles, Send, Trash2 } from 'lucide-react';
 import EditorBlock from '../components/knowledge/EditorBlock';
 import EditorToolbar from '../components/knowledge/EditorToolbar';
 import OutlineEditor from '../components/knowledge/OutlineEditor';
 import SourceSelectionPanel from '../components/knowledge/SourceSelectionPanel';
-import { apiGet, apiPost, apiPatch } from '../api/client';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../api/client';
 
 const FORMATS = ['guide', 'explainer', 'research', 'perspective', 'notes', 'other'];
 const CATEGORIES = ['Thinking', 'Culture', 'Technology', 'UX', 'Engineering', 'Learning', 'Work & Culture'];
@@ -28,16 +28,28 @@ export default function KnowledgeStudioView() {
 
   // Debounce timer reference
   const debounceTimerRef = useRef(null);
+  const creatingRef = useRef(false);
 
   // Fetch or create draft on mount
   useEffect(() => {
     if (!draftId) {
-      // Create a new blank draft if none supplied
-      apiPost('/knowledge/drafts', { title: 'Untitled Knowledge Article' })
+      if (creatingRef.current) return;
+      creatingRef.current = true;
+      // First check if user has an existing blank draft to reuse instead of spamming new ones
+      apiGet('/knowledge/drafts')
         .then((res) => {
-          if (res?.draft?._id) {
-            navigate(`/knowledge/studio/${res.draft._id}`, { replace: true });
+          const existingBlank = res?.drafts?.find(
+            (d) => (!d.title || d.title === 'Untitled Knowledge Article') && (!d.body || d.body.length === 0)
+          );
+          if (existingBlank?._id) {
+            navigate(`/knowledge/studio/${existingBlank._id}`, { replace: true });
+            return;
           }
+          return apiPost('/knowledge/drafts', { title: 'Untitled Knowledge Article' }).then((postRes) => {
+            if (postRes?.draft?._id) {
+              navigate(`/knowledge/studio/${postRes.draft._id}`, { replace: true });
+            }
+          });
         })
         .catch((err) => {
           alert('Failed to initialize draft: ' + err.message);
@@ -217,6 +229,20 @@ export default function KnowledgeStudioView() {
     }
   };
 
+  const handleDeleteDraft = async () => {
+    if (!draft?._id) return;
+    if (!window.confirm('Are you sure you want to delete this draft? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/knowledge/drafts/${draft._id}`);
+      showToast?.('Draft deleted.');
+      navigate('/knowledge');
+    } catch (err) {
+      alert(err.message || 'Failed to delete draft');
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-24 text-center text-xs text-[#8b92a1]">
@@ -259,6 +285,16 @@ export default function KnowledgeStudioView() {
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={handleDeleteDraft}
+            className="p-2 rounded-xl text-xs font-bold border border-[#fdd8d5] text-[#d6554f] hover:bg-[#fff0ee] transition-colors cursor-pointer flex items-center gap-1.5"
+            title="Delete this draft"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Delete Draft</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setSidePaneOpen((prev) => !prev)}

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Bookmark, Share2, ThumbsUp, Database, ExternalLink, Clock, Calendar, Check, ListTree, UserPlus, UserCheck } from 'lucide-react';
+import { ArrowLeft, Bookmark, Share2, ThumbsUp, Database, ExternalLink, Clock, Calendar, Check, ListTree, UserPlus, UserCheck, Trash2 } from 'lucide-react';
 import Avatar from '../components/common/Avatar';
-import { apiGet, apiPost } from '../api/client';
+import { apiGet, apiPost, apiDelete } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
 export default function KnowledgeReaderView() {
@@ -97,6 +97,29 @@ export default function KnowledgeReaderView() {
     }
   };
 
+  const isAuthor =
+    Boolean(user) &&
+    (
+      String(user._id || user.id) === String(article?.authorId?._id || article?.authorId) ||
+      user.displayName === article?.authorName ||
+      user.username === article?.authorName ||
+      user.platformRole === 'admin' ||
+      user.platformRole === 'moderator' ||
+      user.role === 'admin' ||
+      user.role === 'moderator'
+    );
+
+  const handleDeleteArticle = async () => {
+    if (!window.confirm('Are you sure you want to delete this knowledge article?')) return;
+    try {
+      await apiDelete(`/knowledge/${articleId}`);
+      showToast?.('Knowledge article deleted.');
+      navigate('/knowledge');
+    } catch (err) {
+      alert(err.message || 'Failed to delete article');
+    }
+  };
+
   const handleShare = () => {
     navigator.clipboard?.writeText(window.location.href);
     showToast?.('Link copied to clipboard!');
@@ -131,6 +154,16 @@ export default function KnowledgeReaderView() {
         </button>
 
         <div className="flex items-center gap-2">
+          {isAuthor && (
+            <button
+              type="button"
+              onClick={handleDeleteArticle}
+              className="p-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40 cursor-pointer transition-colors"
+              title="Delete Article"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={handleShare}
@@ -216,6 +249,20 @@ export default function KnowledgeReaderView() {
             </button>
           )}
         </div>
+
+        {/* Cover Image if provided */}
+        {article.coverImage && (
+          <div className="rounded-3xl overflow-hidden max-h-96 w-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800">
+            <img
+              src={article.coverImage}
+              alt={article.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+          </div>
+        )}
       </header>
 
       {/* Provenance Card if derived from a Discussion or Post */}

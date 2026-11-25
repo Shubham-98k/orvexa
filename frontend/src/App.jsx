@@ -20,6 +20,7 @@ import DiscoverView from './views/DiscoverView'
 import KnowledgeView from './views/KnowledgeView'
 import KnowledgeStudioView from './views/KnowledgeStudioView'
 import KnowledgeReaderView from './views/KnowledgeReaderView'
+import DiscussionReaderView from './views/DiscussionReaderView'
 import CirclesView from './views/CirclesView'
 import PeopleView from './views/PeopleView'
 import ProfileView from './views/ProfileView'
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/discover" element={<DiscoverView />} />
           <Route path="/knowledge" element={<KnowledgeView />} />
           <Route path="/knowledge/:articleId" element={<KnowledgeReaderView />} />
+          <Route path="/discussions/:discussionId" element={<DiscussionReaderView />} />
           <Route
             path="/knowledge/studio/:draftId"
             element={
@@ -88,13 +90,14 @@ export default function App() {
             }
           />
           <Route
-            path="/activity"
+            path="/notifications"
             element={
               <ProtectedRoute>
                 <ActivityView />
               </ProtectedRoute>
             }
           />
+          <Route path="/activity" element={<Navigate to="/notifications" replace />} />
           <Route
             path="/messages"
             element={

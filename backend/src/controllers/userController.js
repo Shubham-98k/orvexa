@@ -1,5 +1,6 @@
 import { User } from '../models/User.js';
 import { Post } from '../models/Post.js';
+import { Discussion } from '../models/Discussion.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 
 /**
@@ -30,11 +31,18 @@ export async function getUserByUsername(req, res) {
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Fetch user's public posts and knowledge articles
-    const [posts, knowledge] = await Promise.all([
+    // Fetch user's public posts, discussions, and knowledge articles
+    const [posts, discussions, knowledge] = await Promise.all([
       Post.find({
         $or: [{ authorName: user.displayName }, { authorId: user._id }],
         status: 'published',
+      })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean(),
+      Discussion.find({
+        $or: [{ authorName: user.displayName }, { authorId: user._id }],
+        status: { $ne: 'removed' },
       })
         .sort({ createdAt: -1 })
         .limit(20)
@@ -71,6 +79,7 @@ export async function getUserByUsername(req, res) {
         isSelf: req.user ? req.user._id.toString() === user._id.toString() : false,
       },
       posts,
+      discussions,
       knowledge,
     });
   } catch (err) {

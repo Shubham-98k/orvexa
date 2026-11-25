@@ -7,7 +7,7 @@ import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { Post } from '../models/Post.js';
 import { PostReply } from '../models/PostReply.js';
-import { Save } from '../models/Notification.js';
+import { Save, Notification } from '../models/Notification.js';
 import { User } from '../models/User.js';
 import { createSourceSnapshot } from '../services/sourceIngestionService.js';
 import { runZeroCostAnalysis } from '../services/analysisPipelineService.js';
@@ -262,6 +262,56 @@ export const saveKnowledge = async (req, res, next) => {
     await article.save();
 
     res.json({ saved: true, message: 'Saved to your Reading List' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteKnowledgeArticle = async (req, res, next) => {
+  try {
+    const { articleId } = req.params;
+    const { reason } = req.body || {};
+    const article = await KnowledgeArticle.findById(articleId);
+    if (!article) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+
+    const isOwner = req.user && String(article.authorId) === String(req.user._id);
+    const isModOrAdmin = req.user && (
+      req.user.platformRole === 'admin' ||
+      req.user.platformRole === 'moderator' ||
+      req.user.role === 'admin' ||
+      req.user.role === 'moderator'
+    );
+
+    if (!isOwner && !isModOrAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to delete this knowledge article' });
+    }
+
+    article.status = 'archived';
+    await article.save();
+
+    if (isModOrAdmin && !isOwner && article.authorId) {
+      try {
+        await Notification.create({
+          recipientId: article.authorId,
+          actorId: req.user._id,
+          actorName: req.user.displayName || req.user.username || 'Moderation Team',
+          actorInitials: req.user.initials || 'MOD',
+          type: 'content_deleted',
+          title: 'Article removed by moderation',
+          message: reason || 'Your article was removed by moderation for violating community standards.',
+          reason: reason || 'Violating community guidelines',
+          targetType: 'knowledge',
+          targetId: article._id,
+          timeText: 'Just now',
+        });
+      } catch (notifErr) {
+        console.error('Failed to create moderation notification:', notifErr);
+      }
+    }
+
+    res.json({ success: true, message: 'Knowledge article removed successfully' });
   } catch (err) {
     next(err);
   }
@@ -718,7 +768,7 @@ export const getArticleSources = async (req, res, next) => {
 // Backwards-compatible legacy create
 export const createKnowledge = async (req, res, next) => {
   try {
-    const { title, subtitle, summary, content, category, readTime, source, sourceDiscussionId, references, body } = req.body;
+    const { title, subtitle, summary, content, category, readTime, source, sourceDiscussionId, references, body, coverImage } = req.body;
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
     }
@@ -733,6 +783,7 @@ export const createKnowledge = async (req, res, next) => {
       summary: (summary || content || '').slice(0, 160).trim(),
       content: content ? content.trim() : '',
       body: Array.isArray(body) && body.length > 0 ? body : undefined,
+      coverImage: coverImage || '',
       category: category || 'Thinking',
       readTime: readTime || '5 min read',
       source: source || 'Independent article',

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Avatar from '../components/common/Avatar';
 import PostCard from '../components/discover/PostCard';
+import DiscussionCard from '../components/discover/DiscussionCard';
 import KnowledgeCard from '../components/discover/KnowledgeCard';
+import PostDetailModal from '../components/discover/PostDetailModal';
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { Edit3, Check, UserPlus, UserCheck, Shield, MessageSquare, BookOpen } from 'lucide-react';
+import { Edit3, Check, UserPlus, UserCheck, Shield, MessageSquare, BookOpen, MessagesSquare } from 'lucide-react';
 
 export default function ProfileView() {
   const { username: routeUsername } = useParams();
@@ -18,8 +20,11 @@ export default function ProfileView() {
 
   const [profileData, setProfileData] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [discussions, setDiscussions] = useState([]);
   const [knowledge, setKnowledge] = useState([]);
-  const [activeTab, setActiveTab] = useState('posts');
+  const [activeTab, setActiveTab] = useState('posts'); // 'posts' | 'discussions' | 'knowledge'
+  const [activePost, setActivePost] = useState(null);
+  const [focusPostReply, setFocusPostReply] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -74,6 +79,7 @@ export default function ProfileView() {
         const u = res?.user || res;
         setProfileData(u);
         setPosts(res?.posts || []);
+        setDiscussions(res?.discussions || []);
         setKnowledge(res?.knowledge || []);
         setHeadline(u.headline || '');
         setBio(u.bio || '');
@@ -134,7 +140,7 @@ export default function ProfileView() {
   return (
     <div className="space-y-6">
       {/* Profile Header Card */}
-      <div className="border border-[#e9e9ed] rounded-3xl p-6 sm:p-8 bg-white space-y-5 shadow-sm">
+      <div className="border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-6 sm:p-8 bg-white dark:bg-slate-900 space-y-5 shadow-sm">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Avatar
@@ -145,7 +151,7 @@ export default function ProfileView() {
             />
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-black text-[#17213f] leading-snug">
+                <h2 className="text-xl sm:text-2xl font-black text-[#17213f] dark:text-white leading-snug">
                   {profileData.displayName}
                 </h2>
                 {profileData.platformRole === 'admin' && (
@@ -218,73 +224,87 @@ export default function ProfileView() {
 
         {/* Inline Edit or Display Bio */}
         {editing && isViewingSelf ? (
-          <div className="space-y-3 pt-3 border-t border-[#f0f0f4]">
+          <div className="space-y-3 pt-3 border-t border-[#f0f0f4] dark:border-slate-800">
             <div>
-              <label className="text-[11px] font-bold text-[#737b8d] uppercase tracking-wider block mb-1">Headline</label>
+              <label className="text-[11px] font-bold text-[#737b8d] dark:text-slate-400 uppercase tracking-wider block mb-1">Headline</label>
               <input
                 type="text"
                 value={headline}
                 onChange={(e) => setHeadline(e.target.value)}
                 maxLength={120}
-                className="w-full bg-[#f7f7f8] border border-[#e9e9ed] rounded-xl px-3 py-2 text-xs text-[#17213f] focus:outline-none focus:ring-2 focus:ring-[#3f5ce8]"
+                className="w-full bg-[#f7f7f8] dark:bg-slate-800 border border-[#e9e9ed] dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-[#17213f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#3f5ce8]"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-[#737b8d] uppercase tracking-wider block mb-1">About</label>
+              <label className="text-[11px] font-bold text-[#737b8d] dark:text-slate-400 uppercase tracking-wider block mb-1">About</label>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={500}
                 rows={3}
-                className="w-full bg-[#f7f7f8] border border-[#e9e9ed] rounded-xl px-3 py-2 text-xs text-[#17213f] focus:outline-none focus:ring-2 focus:ring-[#3f5ce8]"
+                className="w-full bg-[#f7f7f8] dark:bg-slate-800 border border-[#e9e9ed] dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-[#17213f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#3f5ce8]"
               />
             </div>
           </div>
         ) : (
           profileData.bio && (
-            <p className="text-xs text-[#525d77] leading-relaxed pt-2 border-t border-[#f0f0f4]">
+            <p className="text-xs text-[#525d77] dark:text-slate-300 leading-relaxed pt-2 border-t border-[#f0f0f4] dark:border-slate-800">
               {profileData.bio}
             </p>
           )
         )}
 
         {/* Real followers & following counts */}
-        <div className="flex gap-6 pt-3 text-xs border-t border-[#f0f0f4]">
+        <div className="flex gap-6 pt-3 text-xs border-t border-[#f0f0f4] dark:border-slate-800">
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-[#17213f]">{followersCount}</span>
-            <span className="text-[#737b8d]">Followers</span>
+            <span className="font-black text-[#17213f] dark:text-white">{followersCount}</span>
+            <span className="text-[#737b8d] dark:text-slate-400">Followers</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-[#17213f]">{profileData.followingCount || 0}</span>
-            <span className="text-[#737b8d]">Following</span>
+            <span className="font-black text-[#17213f] dark:text-white">{profileData.followingCount || 0}</span>
+            <span className="text-[#737b8d] dark:text-slate-400">Following</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-[#17213f]">{posts.length}</span>
-            <span className="text-[#737b8d]">Posts</span>
+            <span className="font-black text-[#17213f] dark:text-white">{posts.length}</span>
+            <span className="text-[#737b8d] dark:text-slate-400">Posts</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-[#17213f]">{knowledge.length}</span>
-            <span className="text-[#737b8d]">Knowledge</span>
+            <span className="font-black text-[#17213f] dark:text-white">{discussions.length}</span>
+            <span className="text-[#737b8d] dark:text-slate-400">Discussions</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-black text-[#17213f] dark:text-white">{knowledge.length}</span>
+            <span className="text-[#737b8d] dark:text-slate-400">Knowledge</span>
           </div>
         </div>
       </div>
 
-      {/* Tabs for Posts and Knowledge */}
-      <div className="flex gap-4 border-b border-[#e9e9ed] text-xs font-bold text-[#737b8d]">
+      {/* Tabs for Posts, Discussions, and Knowledge */}
+      <div className="flex gap-4 border-b border-[#e9e9ed] dark:border-slate-800 text-xs font-bold text-[#737b8d] dark:text-slate-400">
         <button
           type="button"
           onClick={() => setActiveTab('posts')}
           className={`pb-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'posts' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f]'
+            activeTab === 'posts' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f] dark:hover:text-white'
           }`}
         >
           {isViewingSelf ? 'My Posts' : `${profileData.displayName}'s Posts`} ({posts.length})
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab('discussions')}
+          className={`pb-2.5 px-1 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'discussions' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f] dark:hover:text-white'
+          }`}
+        >
+          <MessagesSquare className="w-3.5 h-3.5" />
+          <span>Discussions ({discussions.length})</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('knowledge')}
           className={`pb-2.5 px-1 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'knowledge' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f]'
+            activeTab === 'knowledge' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f] dark:hover:text-white'
           }`}
         >
           <BookOpen className="w-3.5 h-3.5" />
@@ -294,21 +314,53 @@ export default function ProfileView() {
 
       {/* Content List */}
       <div className="space-y-4">
-        {activeTab === 'posts' ? (
+        {activeTab === 'posts' && (
           posts.length === 0 ? (
-            <div className="bg-white border border-[#e9e9ed] rounded-3xl p-8 text-center text-xs text-[#737b8d]">
+            <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-8 text-center text-xs text-[#737b8d] dark:text-slate-400">
               No posts published yet.
             </div>
           ) : (
             <div className="space-y-4">
               {posts.map((post) => (
-                <PostCard key={post._id} post={post} />
+                <PostCard
+                  key={post._id}
+                  post={post}
+                  onOpenDetail={(p, focusReply = false) => {
+                    setFocusPostReply(focusReply);
+                    setActivePost(p);
+                  }}
+                  onPostUpdated={(updated) => {
+                    setPosts((prev) =>
+                      prev.map((p) => (p._id === updated._id ? { ...p, ...updated } : p))
+                    );
+                  }}
+                />
               ))}
             </div>
           )
-        ) : (
+        )}
+
+        {activeTab === 'discussions' && (
+          discussions.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-8 text-center text-xs text-[#737b8d] dark:text-slate-400">
+              No discussions published yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {discussions.map((disc) => (
+                <DiscussionCard
+                  key={disc._id}
+                  discussion={disc}
+                  onOpenDetail={(d) => navigate(`/discussions/${d._id}`)}
+                />
+              ))}
+            </div>
+          )
+        )}
+
+        {activeTab === 'knowledge' && (
           knowledge.length === 0 ? (
-            <div className="bg-white border border-[#e9e9ed] rounded-3xl p-8 text-center text-xs text-[#737b8d]">
+            <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-8 text-center text-xs text-[#737b8d] dark:text-slate-400">
               No knowledge guides published yet.
             </div>
           ) : (
@@ -324,6 +376,29 @@ export default function ProfileView() {
           )
         )}
       </div>
+
+      {/* Post Detail Modal */}
+      {activePost && (
+        <PostDetailModal
+          post={activePost}
+          focusReply={focusPostReply}
+          onClose={() => setActivePost(null)}
+          onPostUpdated={(updated) => {
+            setActivePost(updated);
+            setPosts((prev) =>
+              prev.map((p) => (p._id === updated._id ? { ...p, ...updated } : p))
+            );
+          }}
+          onOpenDiscussion={(discId) => {
+            setActivePost(null);
+            if (discId) navigate(`/discussions/${discId}`);
+          }}
+          onOpenKnowledgeDraft={(kData) => {
+            setActivePost(null);
+            navigate('/knowledge-studio', { state: { draft: kData } });
+          }}
+        />
+      )}
     </div>
   );
 }

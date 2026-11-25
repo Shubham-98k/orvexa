@@ -66,6 +66,7 @@ router.post('/posts/:postId/like', requireAuth, postCtrl.toggleLikePost);
 router.get('/posts/:postId/replies', requireAuth, postCtrl.getPostReplies);
 router.post('/posts/:postId/replies', requireAuth, postCtrl.addPostReply);
 router.post('/posts/:postId/save', requireAuth, postCtrl.savePost);
+router.delete('/posts/:postId', requireAuth, postCtrl.deletePost);
 router.post('/posts/:postId/convert-to-discussion', requireAuth, postCtrl.convertPostToDiscussion);
 router.post('/posts/:postId/knowledge-drafts', requireAuth, knowCtrl.createDraftFromPost);
 
@@ -74,6 +75,7 @@ router.post('/posts/:postId/knowledge-drafts', requireAuth, knowCtrl.createDraft
 // ==========================================
 router.get('/discussions', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, discCtrl.getDiscussions);
 router.get('/discussions/:discussionId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, discCtrl.getDiscussionById);
+router.delete('/discussions/:discussionId', requireAuth, discCtrl.deleteDiscussion);
 router.post('/discussions', requireAuth, discCtrl.createDiscussion);
 router.post('/discussions/:discussionId/upvote', requireAuth, discCtrl.upvoteDiscussion);
 router.post('/discussions/:discussionId/contributions', requireAuth, discCtrl.addContribution);
@@ -96,6 +98,7 @@ router.get('/knowledge/:articleId/versions', optionalAuth, requireGuestPreviewOr
 router.post('/knowledge/:articleId/restore-version/:versionId', requireAuth, knowCtrl.restoreArticleVersion);
 router.get('/knowledge/:articleId/sources', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, knowCtrl.getArticleSources);
 router.get('/knowledge/:articleId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, knowCtrl.getKnowledgeById);
+router.delete('/knowledge/:articleId', requireAuth, knowCtrl.deleteKnowledgeArticle);
 router.post('/knowledge', requireAuth, knowCtrl.createKnowledge);
 router.post('/knowledge/:articleId/helpful', requireAuth, knowCtrl.voteHelpful);
 router.post('/knowledge/:articleId/save', requireAuth, knowCtrl.saveKnowledge);
@@ -140,6 +143,7 @@ router.get('/search', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateL
 // ==========================================
 router.get('/admin/overview', requireAuth, adminCtrl.getAdminOverview);
 router.get('/admin/users', requireAuth, adminCtrl.getAdminUsers);
+router.get('/admin/users/:userId/content', requireAuth, adminCtrl.getAdminUserContent);
 router.patch('/admin/users/:userId/role', requireAuth, adminCtrl.updateUserRole);
 router.patch('/admin/users/:userId/status', requireAuth, adminCtrl.updateUserStatus);
 router.patch('/admin/reports/:reportId', requireAuth, adminCtrl.updateReport);

@@ -1,31 +1,26 @@
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
 import { Post } from '../models/Post.js';
+import { PostReply } from '../models/PostReply.js';
 import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 import { Circle } from '../models/Circle.js';
-import { Notification, Save } from '../models/Notification.js';
 
 export const seedDatabase = async () => {
   try {
-    const userCount = await User.countDocuments();
-    if (userCount > 0) {
-      console.log('[Seed] Database already seeded.');
-      return;
-    }
-
-    console.log('[Seed] Seeding Orvexa initial dataset...');
+    console.log('[Seed] Checking and enriching Orvexa database with rich media content...');
 
     const salt = await bcrypt.genSalt(10);
     const defaultPasswordHash = await bcrypt.hash('orvexa123', salt);
 
-    // 1. Create Users
-    const users = await User.create([
+    // 1. Initial User Roster with realistic photo avatars
+    const userProfiles = [
       {
         username: 'shubham',
         email: 'shubham@orvexa.io',
         displayName: 'Shubham Pal',
+        avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80',
         passwordHash: defaultPasswordHash,
         initials: 'SP',
         avatarColor: 'purple',
@@ -39,6 +34,7 @@ export const seedDatabase = async () => {
         username: 'jamie',
         email: 'jamie@orvexa.io',
         displayName: 'Jamie Scott',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
         passwordHash: defaultPasswordHash,
         initials: 'JS',
         avatarColor: 'pink',
@@ -52,6 +48,7 @@ export const seedDatabase = async () => {
         username: 'alicia',
         email: 'alicia@orvexa.io',
         displayName: 'Alicia Lee',
+        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
         passwordHash: defaultPasswordHash,
         initials: 'AL',
         avatarColor: 'blue',
@@ -65,6 +62,7 @@ export const seedDatabase = async () => {
         username: 'devon',
         email: 'devon@orvexa.io',
         displayName: 'Devon Martinez',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
         passwordHash: defaultPasswordHash,
         initials: 'DM',
         avatarColor: 'gold',
@@ -78,6 +76,7 @@ export const seedDatabase = async () => {
         username: 'sarah',
         email: 'sarah@orvexa.io',
         displayName: 'Sarah Rodriguez',
+        avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
         passwordHash: defaultPasswordHash,
         initials: 'SR',
         avatarColor: 'purple',
@@ -91,6 +90,7 @@ export const seedDatabase = async () => {
         username: 'chloe',
         email: 'chloe@orvexa.io',
         displayName: 'Chloe Patel',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
         passwordHash: defaultPasswordHash,
         initials: 'CP',
         avatarColor: 'green',
@@ -104,6 +104,7 @@ export const seedDatabase = async () => {
         username: 'rahul',
         email: 'rahul@orvexa.io',
         displayName: 'Rahul Mehta',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
         passwordHash: defaultPasswordHash,
         initials: 'RM',
         avatarColor: 'green',
@@ -113,301 +114,339 @@ export const seedDatabase = async () => {
         followersCount: 512,
         followingCount: 39,
       },
-    ]);
+    ];
 
-    const shubham = users[0];
-    const jamie = users[1];
-    const alicia = users[2];
-    const devon = users[3];
-    const sarah = users[4];
-    const chloe = users[5];
-    const rahul = users[6];
+    const users = [];
+    for (const up of userProfiles) {
+      let u = await User.findOne({ username: up.username });
+      if (!u) {
+        u = await User.create(up);
+      } else {
+        u.avatar = up.avatar;
+        u.displayName = up.displayName;
+        await u.save();
+      }
+      users.push(u);
+    }
 
-    // Establish initial following relationships for default user
-    shubham.following = [jamie._id, alicia._id, devon._id];
-    shubham.followingCount = 3;
-    jamie.followers = [shubham._id];
-    alicia.followers = [shubham._id];
-    devon.followers = [shubham._id];
-    await Promise.all([shubham.save(), jamie.save(), alicia.save(), devon.save()]);
+    const [shubham, jamie, alicia, devon, sarah, chloe, rahul] = users;
 
-    // 2. Create Circles
-    const circles = await Circle.create([
+    // 2. Circles with Cover Imagery
+    const circleDefs = [
       {
-        name: 'Design Thinkers',
-        slug: 'design-thinkers',
-        description: 'A space for people who care about thoughtful, human-centred design.',
+        name: 'Tech Enthusiasts',
+        slug: 'tech-enthusiasts',
+        description: 'Emerging technologies, developer ergonomics, and systems thinking.',
+        icon: '⚡',
+        imageUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=300&q=80',
+        category: 'Technology',
+        membersCount: 3200,
+        ownerId: sarah._id,
+      },
+      {
+        name: 'Design Lovers',
+        slug: 'design-lovers',
+        description: 'Thoughtful typography, interfaces, and physical objects.',
         icon: '✧',
-        coverTheme: 'c1',
+        imageUrl: 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=300&q=80',
         category: 'Design & UX',
-        membersCount: 2400,
+        membersCount: 2840,
         ownerId: alicia._id,
-        members: [alicia._id, shubham._id],
+      },
+      {
+        name: 'AI & Future',
+        slug: 'ai-and-future',
+        description: 'Autonomous agents, cognitive workflows, and ethical interfaces.',
+        icon: '🤖',
+        imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&q=80',
+        category: 'Technology',
+        membersCount: 4120,
+        ownerId: jamie._id,
       },
       {
         name: 'Future of Work',
         slug: 'future-of-work',
-        description: 'Explore how technology and culture are changing the way we work.',
+        description: 'Distributed teams, async rhythms, and healthy company culture.',
         icon: '⌘',
-        coverTheme: 'c2',
+        imageUrl: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=300&q=80',
         category: 'Work & Culture',
-        membersCount: 1800,
-        ownerId: jamie._id,
-        members: [jamie._id, rahul._id, shubham._id],
-      },
-      {
-        name: 'Curious Minds',
-        slug: 'curious-minds',
-        description: 'Questions, discoveries and conversations across disciplines.',
-        icon: '◉',
-        coverTheme: 'c3',
-        category: 'Thinking',
-        membersCount: 980,
-        ownerId: devon._id,
-        members: [devon._id, shubham._id],
-      },
-      {
-        name: 'Knowledge Builders',
-        slug: 'knowledge-builders',
-        description: 'Turn useful discussions into resources people can learn from.',
-        icon: '▤',
-        coverTheme: 'c4',
-        category: 'Learning',
-        membersCount: 760,
+        membersCount: 1950,
         ownerId: rahul._id,
-        members: [rahul._id, shubham._id],
       },
-    ]);
+    ];
 
-    // 3. Create Posts
-    await Post.create([
+    for (const cDef of circleDefs) {
+      const exists = await Circle.findOne({ slug: cDef.slug });
+      if (!exists) {
+        await Circle.create({
+          ...cDef,
+          members: [cDef.ownerId, shubham._id],
+        });
+      }
+    }
+
+    // 3. Enrich & Upsert Posts with Pictures
+    const richPosts = [
       {
+        title: "Just finished reading 'Atomic Habits'",
+        body: 'Such a game-changer! 📘 The premise is remarkably simple: you do not rise to the level of your goals, you fall to the level of your systems. Focusing on tiny 1% daily increments creates compounding momentum.',
+        imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80',
+        authorId: rahul._id,
+        authorName: rahul.displayName,
+        authorInitials: rahul.initials,
+        authorColor: rahul.avatarColor,
+        tags: ['#Habits', '#ContinuousLearning', '#Productivity'],
+        likeCount: 87,
+        commentCount: 23,
+        commentsCount: 23,
+      },
+      {
+        title: 'Minimalist setups for deeper focus',
+        body: 'Cutting down visual and physical clutter directly calms mental processing. A single clean notebook, warm natural daylight, and a dedicated workspace do more for focus than any app ever did.',
+        imageUrl: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=800&q=80',
         authorId: jamie._id,
         authorName: jamie.displayName,
         authorInitials: jamie.initials,
         authorColor: jamie.avatarColor,
-        circleName: 'Future of Work',
-        circleId: circles[1]._id,
-        body: 'I’ve been thinking about how much of remote work is really about the small moments between meetings. A quick check-in, sharing a half-formed thought, or just knowing who’s around can make a huge difference.',
-        tags: ['#FutureOfWork', '#RemoteTeams'],
-        likeCount: 86,
-        likes: [shubham._id],
-        likedBy: [shubham._id],
-        commentCount: 18,
-        commentsCount: 18,
+        tags: ['#DeepWork', '#Minimalism', '#Workspaces'],
+        likeCount: 114,
+        commentCount: 19,
+        commentsCount: 19,
       },
       {
-        authorId: alicia._id,
-        authorName: alicia.displayName,
-        authorInitials: alicia.initials,
-        authorColor: alicia.avatarColor,
-        body: 'A question for the community: what’s one thing you wish you had learned earlier about giving and receiving feedback?',
-        tags: ['#UX', '#Growth'],
-        likeCount: 54,
-        likes: [],
-        likedBy: [],
-        commentCount: 22,
-        commentsCount: 22,
-      },
-      {
+        title: 'Clarity over consensus',
+        body: 'The best meetings are the ones that make the next step obvious. A small reminder that clarity is often more valuable than another status update or debating edge cases indefinitely.',
+        imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
         authorId: chloe._id,
         authorName: chloe.displayName,
         authorInitials: chloe.initials,
         authorColor: chloe.avatarColor,
-        title: 'Clarity over consensus',
-        body: 'The best meetings are the ones that make the next step obvious. A small reminder that clarity is often more valuable than another status update.',
-        tags: ['#Productivity', '#Leadership'],
+        tags: ['#Productivity', '#Leadership', '#Clarity'],
         likeCount: 92,
-        likes: [],
-        likedBy: [],
         commentCount: 12,
         commentsCount: 12,
       },
       {
-        authorId: devon._id,
-        authorName: devon.displayName,
-        authorInitials: devon.initials,
-        authorColor: devon.avatarColor,
-        title: 'Starting with curiosity',
-        body: 'Curiosity is a better starting point than certainty. Especially when you’re trying to solve something with people who see it differently.',
-        tags: ['#Collaboration', '#Thinking'],
-        likeCount: 68,
-        likes: [],
-        likedBy: [],
-        commentCount: 15,
-        commentsCount: 15,
-      },
-    ]);
-
-    // 4. Create Discussions (Ideas)
-    const discussions = await Discussion.create([
-      {
-        authorId: jamie._id,
-        authorName: jamie.displayName,
-        authorInitials: jamie.initials,
-        authorColor: jamie.avatarColor,
-        title: 'How can we make remote work feel less isolating?',
-        body: 'Exploring rituals, tools and team habits that help distributed teams feel connected without creating notification fatigue.',
-        category: 'Culture',
-        status: 'trending',
-        votes: 842,
-        commentsCount: 43,
-        contributorsCount: 24,
-      },
-      {
+        title: 'Morning espresso & domain modeling',
+        body: 'Always map domain entities and invariant rules on paper before jumping to the controllers. If the schema model is clear, the rest of the application flows naturally.',
+        imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=800&q=80',
         authorId: alicia._id,
         authorName: alicia.displayName,
         authorInitials: alicia.initials,
         authorColor: alicia.avatarColor,
-        title: 'A better way to discover what you need to learn',
-        body: 'Can we make learning paths feel more personal, practical and community-driven rather than linear syllabi?',
-        category: 'UX',
-        status: 'open',
-        votes: 612,
-        commentsCount: 28,
-        contributorsCount: 18,
+        tags: ['#Engineering', '#Architecture', '#SoftwareDesign'],
+        likeCount: 68,
+        commentCount: 16,
+        commentsCount: 16,
+      },
+    ];
+
+    for (const pData of richPosts) {
+      const exists = await Post.findOne({ title: pData.title });
+      if (!exists) {
+        const createdPost = await Post.create(pData);
+        // Seed an initial reply
+        await PostReply.create({
+          postId: createdPost._id,
+          authorId: devon._id,
+          authorName: devon.displayName,
+          authorInitials: devon.initials,
+          authorColor: devon.avatarColor,
+          body: 'Completely agree with this perspective. Small changes really do make the difference.',
+        });
+      } else if (!exists.imageUrl && pData.imageUrl) {
+        exists.imageUrl = pData.imageUrl;
+        await exists.save();
+      }
+    }
+
+    // 4. Enrich & Upsert Discussions with Pictures and Contributions
+    const richDiscussions = [
+      {
+        title: "What's your favourite productivity tool? 🤔",
+        body: "Let's hear your top picks and why you love them. Whether it is an analog bullet journal, Obsidian, Raycast, or custom shell scripts, what gives you the highest leverage?",
+        imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80',
+        category: 'Productivity',
+        authorId: jamie._id,
+        authorName: jamie.displayName,
+        authorInitials: jamie.initials,
+        authorColor: jamie.avatarColor,
+        votes: 421,
+        commentsCount: 124,
+        contributorsCount: 42,
       },
       {
-        authorId: devon._id,
-        authorName: devon.displayName,
-        authorInitials: devon.initials,
-        authorColor: devon.avatarColor,
-        title: 'Could local communities share unused resources?',
-        body: 'A collaborative exploration of neighbourhood sharing, trust, lightweight tool libraries, and circular systems.',
-        category: 'Process',
-        status: 'under_review',
-        votes: 498,
-        commentsCount: 31,
-        contributorsCount: 16,
+        title: 'Ideas to improve Orvexa?',
+        body: 'Share your thoughts and suggestions. How can we make it even easier to graduate everyday discussions into durable knowledge guides?',
+        imageUrl: 'https://images.unsplash.com/photo-1507499739999-097706ad8914?auto=format&fit=crop&w=800&q=80',
+        category: 'Thinking',
+        authorId: shubham._id,
+        authorName: shubham.displayName,
+        authorInitials: shubham.initials,
+        authorColor: shubham.avatarColor,
+        votes: 292,
+        commentsCount: 73,
+        contributorsCount: 28,
       },
       {
+        title: 'How can we make remote work feel less isolating?',
+        body: 'Exploring rituals, tools and team habits that help distributed teams feel connected without creating notification fatigue.',
+        imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
+        category: 'Work & Culture',
+        authorId: jamie._id,
+        authorName: jamie.displayName,
+        authorInitials: jamie.initials,
+        authorColor: jamie.avatarColor,
+        votes: 842,
+        commentsCount: 84,
+        contributorsCount: 35,
+      },
+      {
+        title: 'The future of AI in education: Personalized learning vs mentorship',
+        body: 'Can AI agents adaptively tutor fundamentals while human teachers preserve social empathy and critical debate? Where is the real balance?',
+        imageUrl: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=800&q=80',
+        category: 'Learning',
         authorId: sarah._id,
         authorName: sarah.displayName,
         authorInitials: sarah.initials,
         authorColor: sarah.avatarColor,
-        title: 'What should a truly useful AI assistant remember?',
-        body: 'Finding the right balance between helpful persistent context, user privacy, explicit consent, and control.',
-        category: 'Engineering',
-        status: 'accepted',
-        votes: 421,
-        commentsCount: 19,
-        contributorsCount: 32,
+        votes: 512,
+        commentsCount: 65,
+        contributorsCount: 22,
       },
-    ]);
+    ];
 
-    // Add contributions to first discussion
-    await DiscussionContribution.create([
-      {
-        discussionId: discussions[0]._id,
-        authorId: rahul._id,
-        authorName: rahul.displayName,
-        authorInitials: rahul.initials,
-        authorColor: rahul.avatarColor,
-        body: 'We replaced our morning standup with an asynchronous voice note channel. People listen on their own schedule, and it retains emotional tone without scheduling friction.',
-        votes: 38,
-      },
-      {
-        discussionId: discussions[0]._id,
-        authorId: chloe._id,
-        authorName: chloe.displayName,
-        authorInitials: chloe.initials,
-        authorColor: chloe.avatarColor,
-        body: 'Pair coworking sessions with cameras optional and lo-fi music in the background give that studio feeling without pressure to constantly speak.',
-        votes: 27,
-      },
-    ]);
+    for (const dData of richDiscussions) {
+      let disc = await Discussion.findOne({ title: dData.title });
+      if (!disc) {
+        disc = await Discussion.create(dData);
+        // Add sample initial contributions
+        await DiscussionContribution.create([
+          {
+            discussionId: disc._id,
+            authorId: alicia._id,
+            authorName: alicia.displayName,
+            authorInitials: alicia.initials,
+            authorColor: alicia.avatarColor,
+            body: 'Async voice memos and short 3-minute video updates have completely transformed how our team communicates without dragging everyone into hour-long syncs.',
+          },
+          {
+            discussionId: disc._id,
+            authorId: devon._id,
+            authorName: devon.displayName,
+            authorInitials: devon.initials,
+            authorColor: devon.avatarColor,
+            body: 'Pairing sessions twice a week work wonders. Even just co-working with mics open while working independently eliminates the isolation factor.',
+          },
+        ]);
+      } else if (!disc.imageUrl && dData.imageUrl) {
+        disc.imageUrl = dData.imageUrl;
+        await disc.save();
+      }
+    }
 
-    // 5. Create Knowledge Articles
-    await KnowledgeArticle.create([
+    // 5. Enrich & Upsert Knowledge Articles with Cover Imagery
+    const richKnowledge = [
       {
-        authorId: rahul._id,
-        authorName: rahul.displayName,
-        authorInitials: rahul.initials,
-        authorColor: rahul.avatarColor,
-        title: 'A practical guide to building healthy remote teams',
-        subtitle: 'Communication, trust and connection in distributed teams',
-        summary: 'Research-backed practices for communication, trust and connection in distributed teams.',
-        content: `### Executive Summary\nDistributed work fails when it attempts to replicate the physical office through hyper-surveillance or back-to-back video calls. High-performing distributed organizations build deliberate rituals around async documentation, explicit context, and trust by default.\n\n### 1. The Async First Imperative\nWhen synchronous availability is the primary measure of commitment, deep work disappears. Organizations should establish default response windows of 4-6 hours rather than requiring instant replies.\n\n### 2. Rituals of Connection\nConnection in remote environments is either intentional or non-existent. Lightweight practices such as weekly informal showcases and shared reading clubs build social cohesion across timezone barriers.`,
-        category: 'Work & Culture',
+        title: "A beginner's guide to building better reading habits",
+        subtitle: 'Small changes. Big impact.',
+        summary: 'How to transition from passive browsing to focused, active reading habits that stick for life.',
+        coverImage: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80',
+        category: 'Learning',
+        format: 'guide',
         readTime: '8 min read',
-        source: 'Developed from an Idea',
-        sourceDiscussionId: discussions[0]._id,
-        contributorsCredited: ['Jamie Scott', 'Rahul Mehta', 'Chloe Patel'],
-        savesCount: 128,
-        helpfulCount: 64,
-        references: [
-          { title: 'The Psychology of Virtual Teams', url: 'https://doi.org/example', note: 'Foundational study on async cadence' },
-          { title: 'Remote Work Infrastructure Review', url: 'https://example.com/remote-infra', note: 'Field experiments across 40 organizations' }
-        ],
-      },
-      {
         authorId: alicia._id,
         authorName: alicia.displayName,
         authorInitials: alicia.initials,
         authorColor: alicia.avatarColor,
-        title: 'How to think clearly when a problem feels complex',
-        subtitle: 'A framework for breaking ambiguous problems into smaller, testable questions',
-        summary: 'A framework for breaking ambiguous problems into smaller, testable questions.',
-        content: `### Deconstructing Ambiguity\nWhen confronted with high ambiguity, the natural impulse is to seek more information. Often, what is needed is not more data, but a structured boundary around the core assumptions.\n\n### The 3-Step Slicing Method\n1. **Isolate the Invariants:** Identify what cannot change under current technical or market constraints.\n2. **Identify Unknown Dependencies:** Map assumptions that have not yet been validated with users.\n3. **Build the Smallest Reversible Probe:** Deploy a lightweight prototype to observe reality before committing large architecture.`,
-        category: 'Thinking',
-        readTime: '6 min read',
-        source: 'Independent article',
-        savesCount: 94,
-        helpfulCount: 47,
+        savesCount: 142,
+        helpfulCount: 88,
+        status: 'published',
+        publishedAt: new Date(),
+        body: [
+          { id: 'b-1', type: 'heading1', content: 'Why most reading habits fail', data: {} },
+          { id: 'b-2', type: 'paragraph', content: 'Most people try to read 50 pages a day immediately, burning out in week two. The secret is frictionless entry: read just 2 pages every evening before touching your phone.', data: {} },
+          { id: 'b-3', type: 'heading2', content: 'The 2-Minute Gateway', data: {} },
+          { id: 'b-4', type: 'paragraph', content: 'Anchor reading to an existing habit, like your first morning coffee or turning off your desk monitor. The friction to begin is the only barrier that matters.', data: {} },
+        ],
       },
       {
+        title: 'The future of work: hybrid, remote or both?',
+        subtitle: 'Exploring the next chapter of work culture.',
+        summary: 'Why the binary debate between office mandates and pure remote is missing the true point: asynchronous agency.',
+        coverImage: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=800&q=80',
+        category: 'Work & Culture',
+        format: 'perspective',
+        readTime: '6 min read',
         authorId: jamie._id,
         authorName: jamie.displayName,
         authorInitials: jamie.initials,
         authorColor: jamie.avatarColor,
-        title: 'Designing better habits for lifelong learning',
-        subtitle: 'Small systems that make curiosity, practice and reflection part of everyday life',
-        summary: 'Small systems that make curiosity, practice and reflection part of everyday life.',
-        content: `### Curiosity as an Operating System\nLearning is rarely constrained by access to material; it is constrained by cognitive bandwidth and the absence of a capture mechanism.\n\n### The Daily Loop\nBy spending 15 minutes each evening distilling one concept into plain language, comprehension deepens significantly over passive reading.`,
-        category: 'Learning',
-        readTime: '11 min read',
-        source: 'Developed from an Idea',
-        savesCount: 81,
-        helpfulCount: 39,
+        savesCount: 96,
+        helpfulCount: 65,
+        status: 'published',
+        publishedAt: new Date(),
+        body: [
+          { id: 'b-1', type: 'heading1', content: 'Rethinking Synchronicity', data: {} },
+          { id: 'b-2', type: 'paragraph', content: 'The real transformation is not physical geography; it is replacing real-time meetings with high-fidelity written documentation and durable artifacts.', data: {} },
+        ],
       },
-    ]);
+      {
+        title: 'A practical guide to building healthy remote teams',
+        subtitle: 'Rituals, psychological safety and async practices.',
+        summary: 'Synthesized from over 50 distributed organizations: what actually keeps high-performing remote teams resilient.',
+        coverImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80',
+        category: 'Work & Culture',
+        format: 'guide',
+        readTime: '7 min read',
+        authorId: rahul._id,
+        authorName: rahul.displayName,
+        authorInitials: rahul.initials,
+        authorColor: rahul.avatarColor,
+        savesCount: 110,
+        helpfulCount: 74,
+        status: 'published',
+        publishedAt: new Date(),
+        body: [
+          { id: 'b-1', type: 'heading1', content: 'The Pillars of Distributed Trust', data: {} },
+          { id: 'b-2', type: 'paragraph', content: 'Trust in remote teams is built through transparent written artifacts, clear ownership boundaries, and predictable cadence rather than digital surveillance.', data: {} },
+        ],
+      },
+      {
+        title: 'How to think clearly when a problem feels complex',
+        subtitle: 'Mental models for navigation and decision making.',
+        summary: 'Deconstruct overwhelming problems using first principles, inversion, and second-order effect modeling.',
+        coverImage: 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?auto=format&fit=crop&w=800&q=80',
+        category: 'Thinking',
+        format: 'explainer',
+        readTime: '5 min read',
+        authorId: alicia._id,
+        authorName: alicia.displayName,
+        authorInitials: alicia.initials,
+        authorColor: alicia.avatarColor,
+        savesCount: 84,
+        helpfulCount: 52,
+        status: 'published',
+        publishedAt: new Date(),
+        body: [
+          { id: 'b-1', type: 'heading1', content: 'Inversion: Avoid Stupidity Before Seeking Brilliance', data: {} },
+          { id: 'b-2', type: 'paragraph', content: 'Instead of asking how to make a project succeed, ask what guarantees its failure, and systematically eliminate those failure modes.', data: {} },
+        ],
+      },
+    ];
 
-    // 6. Create Notifications
-    await Notification.create([
-      {
-        recipientId: shubham._id,
-        actorId: alicia._id,
-        actorName: 'Alicia Lee',
-        actorInitials: 'AL',
-        actorColor: 'blue',
-        type: 'contribution',
-        title: 'contributed to an Idea you follow: "How can we make remote work feel less isolating?"',
-        timeText: '12 min ago',
-      },
-      {
-        recipientId: shubham._id,
-        actorId: jamie._id,
-        actorName: 'Jamie Scott',
-        actorInitials: 'JS',
-        actorColor: 'pink',
-        type: 'knowledge_published',
-        title: 'published a new Knowledge resource: "Designing better habits for lifelong learning"',
-        timeText: '1 hr ago',
-      },
-      {
-        recipientId: shubham._id,
-        actorId: devon._id,
-        actorName: 'Devon Martinez',
-        actorInitials: 'DM',
-        actorColor: 'gold',
-        type: 'mention',
-        title: 'mentioned you in a discussion regarding local sharing tools',
-        timeText: '3 hrs ago',
-      },
-    ]);
+    for (const kData of richKnowledge) {
+      let art = await KnowledgeArticle.findOne({ title: kData.title });
+      if (!art) {
+        await KnowledgeArticle.create(kData);
+      } else if (!art.coverImage && kData.coverImage) {
+        art.coverImage = kData.coverImage;
+        await art.save();
+      }
+    }
 
-    console.log('[Seed] Database successfully seeded with prototype baseline!');
+    console.log('[Seed] Database content enrichment complete.');
   } catch (err) {
-    console.error('[Seed Error]', err);
+    console.error('[Seed Error] Failed to enrich database:', err);
   }
 };

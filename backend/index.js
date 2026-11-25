@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { Server } from 'socket.io';
 import app from './src/app.js';
 import { connectDB } from './src/config/db.js';
+import { seedDatabase } from './src/seeds/seed.js';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ io.on('connection', (socket) => {
 
 const startServer = async () => {
   await connectDB();
+  await seedDatabase();
 
   server.listen(PORT, () => {
     console.log(`[Orvexa Server] Running on http://localhost:${PORT}`);

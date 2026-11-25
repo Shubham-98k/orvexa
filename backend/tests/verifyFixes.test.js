@@ -309,7 +309,92 @@ const runTests = async () => {
     console.log('✓ Test 9 Passed: Direct conversation validation strictly prevents invalid or self conversations.');
   }
 
-  console.log('\nAll 9 automated unit/integration checks PASSED successfully!');
+  // Test 10: Content Deletion & Moderation with Reason Notifications
+  {
+    const { deletePost } = await import('../src/controllers/postController.js');
+    const { Post } = await import('../src/models/Post.js');
+    const { Notification } = await import('../src/models/Notification.js');
+
+    const originalFindById = Post.findById;
+    const originalNotifCreate = Notification.create;
+
+    let savedStatus = null;
+    let createdNotification = null;
+
+    const mockPost = {
+      _id: '507f1f77bcf86cd799439099',
+      authorId: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
+      status: 'published',
+      save: async () => {
+        savedStatus = mockPost.status;
+      },
+    };
+
+    Post.findById = async () => mockPost;
+    Notification.create = async (doc) => {
+      createdNotification = doc;
+      return doc;
+    };
+
+    // 10a. Unauthorized user blocked
+    let unauthCode = null;
+    const unauthRes = {
+      status(c) { unauthCode = c; return this; },
+      json() { return this; },
+    };
+    await deletePost(
+      { params: { postId: mockPost._id }, user: { _id: '507f1f77bcf86cd799439022', platformRole: 'user' }, body: {} },
+      unauthRes,
+      () => {}
+    );
+    assert.equal(unauthCode, 403, 'Non-owner and non-staff must be rejected with 403');
+
+    // 10b. Moderator deletion creates notification with reason
+    let modJson = null;
+    const modRes = {
+      json(b) { modJson = b; return this; },
+    };
+    await deletePost(
+      {
+        params: { postId: mockPost._id },
+        user: { _id: '507f1f77bcf86cd799439088', platformRole: 'moderator', displayName: 'ModTeam' },
+        body: { reason: 'Violates toxicity policy' },
+      },
+      modRes,
+      () => {}
+    );
+    assert.equal(savedStatus, 'deleted', 'Post status must be set to deleted');
+    assert.equal(modJson?.success, true);
+    assert.ok(createdNotification, 'Moderator deletion must record notification');
+    assert.equal(createdNotification.reason, 'Violates toxicity policy');
+    assert.equal(createdNotification.type, 'content_deleted');
+
+    Post.findById = originalFindById;
+    Notification.create = originalNotifCreate;
+
+    console.log('✓ Test 10 Passed: Content deletion enforces owner/staff permissions and notifies author on moderation.');
+  }
+
+  // Test 11: Admin user content inspection
+  {
+    const { getAdminUserContent } = await import('../src/controllers/adminController.js');
+
+    let regularCode = null;
+    const regRes = {
+      status(c) { regularCode = c; return this; },
+      json() { return this; },
+    };
+    await getAdminUserContent(
+      { params: { userId: '507f1f77bcf86cd799439011' }, user: { platformRole: 'user' } },
+      regRes,
+      () => {}
+    );
+    assert.equal(regularCode, 403, 'Regular users cannot access admin user content inspection');
+
+    console.log('✓ Test 11 Passed: Admin user inspection endpoint properly secured for staff only.');
+  }
+
+  console.log('\nAll 11 automated unit/integration checks PASSED successfully!');
 };
 
 runTests().catch((err) => {

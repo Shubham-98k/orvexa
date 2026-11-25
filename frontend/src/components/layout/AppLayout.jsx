@@ -16,6 +16,21 @@ export default function AppLayout() {
   const [createDefaultType, setCreateDefaultType] = useState('Post');
   const [toastMessage, setToastMessage] = useState('');
   const [guestGateOpen, setGuestGateOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('orvexa_dark_mode') === 'true';
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('orvexa_dark_mode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('orvexa_dark_mode', 'false');
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => setDarkMode((prev) => !prev);
 
   // Register listener for server-sent GUEST_PREVIEW_EXPIRED 403 response
   useEffect(() => {
@@ -42,19 +57,27 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f7f8] text-[#17213f] font-sans">
-      <div className="max-w-[1680px] mx-auto min-h-screen grid grid-cols-1 md:grid-cols-[252px_minmax(0,1fr)] xl:grid-cols-[252px_minmax(0,1fr)_300px] bg-white shadow-sm border-x border-[#e9e9ed]">
+    <div className={`min-h-screen transition-colors duration-200 ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-white text-[#17213f]'} font-sans`}>
+      <div className={`max-w-[1680px] mx-auto min-h-screen grid grid-cols-1 md:grid-cols-[235px_minmax(0,1fr)] xl:grid-cols-[235px_minmax(0,1fr)_260px] shadow-sm border-x transition-colors ${
+        darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#f0f0f4]'
+      }`}>
         {/* Left Sidebar */}
-        <LeftSidebar onOpenCreate={() => handleOpenCreate('Post')} />
+        <LeftSidebar
+          onOpenCreate={() => handleOpenCreate('Post')}
+          darkMode={darkMode}
+          toggleDarkMode={toggleDarkMode}
+        />
 
         {/* Center Main View (Outlet) */}
-        <main className="p-5 sm:p-8 lg:p-10 min-w-0 flex flex-col">
-          <Outlet context={{ onOpenCreate: handleOpenCreate, showToast }} />
+        <main className={`p-4 sm:p-7 min-w-0 flex flex-col transition-colors ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
+          <Outlet context={{ onOpenCreate: handleOpenCreate, showToast, darkMode, toggleDarkMode }} />
         </main>
 
         {/* Right Sidebar */}
         <RightSidebar
           onOpenCreateIdea={() => handleOpenCreate('Discussion')}
+          onOpenCreateCircle={() => handleOpenCreate('Circle')}
+          darkMode={darkMode}
         />
       </div>
 

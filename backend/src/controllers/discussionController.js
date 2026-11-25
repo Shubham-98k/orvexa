@@ -141,7 +141,7 @@ export const getDiscussionById = async (req, res, next) => {
 
 export const createDiscussion = async (req, res, next) => {
   try {
-    const { title, body, category, tags } = req.body;
+    const { title, body, category, tags, imageUrl } = req.body;
     if (!title || !body) {
       return res.status(400).json({ error: 'Title and context are required' });
     }
@@ -153,6 +153,7 @@ export const createDiscussion = async (req, res, next) => {
       authorColor: req.user.avatarColor,
       title: title.trim(),
       body: body.trim(),
+      imageUrl: imageUrl || '',
       category: category || 'General',
       tags: tags || ['#ideas'],
       votes: 0,
@@ -344,6 +345,56 @@ export const deleteContribution = async (req, res, next) => {
       contributionCount: stats.contributionCount,
       contributorCount: stats.contributorCount,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteDiscussion = async (req, res, next) => {
+  try {
+    const { discussionId } = req.params;
+    const { reason } = req.body || {};
+    const discussion = await Discussion.findById(discussionId);
+    if (!discussion) {
+      return res.status(404).json({ error: 'Discussion not found' });
+    }
+
+    const isOwner = req.user && String(discussion.authorId) === String(req.user._id);
+    const isModOrAdmin = req.user && (
+      req.user.platformRole === 'admin' ||
+      req.user.platformRole === 'moderator' ||
+      req.user.role === 'admin' ||
+      req.user.role === 'moderator'
+    );
+
+    if (!isOwner && !isModOrAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to delete this discussion' });
+    }
+
+    discussion.status = 'closed';
+    await discussion.save();
+
+    if (isModOrAdmin && !isOwner && discussion.authorId) {
+      try {
+        await Notification.create({
+          recipientId: discussion.authorId,
+          actorId: req.user._id,
+          actorName: req.user.displayName || req.user.username || 'Moderation Team',
+          actorInitials: req.user.initials || 'MOD',
+          type: 'content_deleted',
+          title: 'Discussion closed by moderation',
+          message: reason || 'Your discussion was removed by moderation for violating community standards.',
+          reason: reason || 'Violating community guidelines',
+          targetType: 'discussion',
+          targetId: discussion._id,
+          timeText: 'Just now',
+        });
+      } catch (notifErr) {
+        console.error('Failed to create moderation notification:', notifErr);
+      }
+    }
+
+    res.json({ success: true, message: 'Discussion deleted successfully' });
   } catch (err) {
     next(err);
   }
