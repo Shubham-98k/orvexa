@@ -2,6 +2,7 @@ import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { Notification } from '../models/Notification.js';
 import { User } from '../models/User.js';
+import { Post } from '../models/Post.js';
 
 /**
  * Reconciles discussion counts accurately against persisted records:
@@ -111,6 +112,13 @@ export const getDiscussionById = async (req, res, next) => {
       ? (discussion.voters.some((v) => v.toString() === req.user._id.toString()) ? 1 : 0)
       : 0;
 
+    let originPost = null;
+    if (discussion.originPostId) {
+      originPost = await Post.findById(discussion.originPostId)
+        .select('_id title body authorName authorInitials authorColor createdAt')
+        .lean();
+    }
+
     res.json({
       discussion: {
         ...discussion.toObject(),
@@ -120,6 +128,7 @@ export const getDiscussionById = async (req, res, next) => {
         contributorCount,
         viewerVote,
         hasUpvoted: viewerVote === 1,
+        originPost,
       },
       contributions,
       totalContributions: contributionCount,

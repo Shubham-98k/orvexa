@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Avatar from '../components/common/Avatar';
 import PostCard from '../components/discover/PostCard';
+import KnowledgeCard from '../components/discover/KnowledgeCard';
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { Edit3, Check, UserPlus, UserCheck, Shield, MessageSquare } from 'lucide-react';
+import { Edit3, Check, UserPlus, UserCheck, Shield, MessageSquare, BookOpen } from 'lucide-react';
 
 export default function ProfileView() {
   const { username: routeUsername } = useParams();
@@ -17,6 +18,8 @@ export default function ProfileView() {
 
   const [profileData, setProfileData] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [knowledge, setKnowledge] = useState([]);
+  const [activeTab, setActiveTab] = useState('posts');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -71,6 +74,7 @@ export default function ProfileView() {
         const u = res?.user || res;
         setProfileData(u);
         setPosts(res?.posts || []);
+        setKnowledge(res?.knowledge || []);
         setHeadline(u.headline || '');
         setBio(u.bio || '');
         setIsFollowing(Boolean(u.isFollowing));
@@ -258,28 +262,66 @@ export default function ProfileView() {
             <span className="font-black text-[#17213f]">{posts.length}</span>
             <span className="text-[#737b8d]">Posts</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-black text-[#17213f]">{knowledge.length}</span>
+            <span className="text-[#737b8d]">Knowledge</span>
+          </div>
         </div>
       </div>
 
-      {/* Published Posts by User */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-[#17213f] uppercase tracking-wider">
-            {isViewingSelf ? 'My Activity' : `${profileData.displayName}'s Posts`}
-          </h3>
-          <span className="text-xs text-[#737b8d]">{posts.length} posts</span>
-        </div>
+      {/* Tabs for Posts and Knowledge */}
+      <div className="flex gap-4 border-b border-[#e9e9ed] text-xs font-bold text-[#737b8d]">
+        <button
+          type="button"
+          onClick={() => setActiveTab('posts')}
+          className={`pb-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'posts' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f]'
+          }`}
+        >
+          {isViewingSelf ? 'My Posts' : `${profileData.displayName}'s Posts`} ({posts.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('knowledge')}
+          className={`pb-2.5 px-1 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'knowledge' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f]'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Knowledge Publications ({knowledge.length})</span>
+        </button>
+      </div>
 
-        {posts.length === 0 ? (
-          <div className="bg-white border border-[#e9e9ed] rounded-3xl p-8 text-center text-xs text-[#737b8d]">
-            No posts published yet.
-          </div>
+      {/* Content List */}
+      <div className="space-y-4">
+        {activeTab === 'posts' ? (
+          posts.length === 0 ? (
+            <div className="bg-white border border-[#e9e9ed] rounded-3xl p-8 text-center text-xs text-[#737b8d]">
+              No posts published yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {posts.map((post) => (
+                <PostCard key={post._id} post={post} />
+              ))}
+            </div>
+          )
         ) : (
-          <div className="space-y-4">
-            {posts.map((post) => (
-              <PostCard key={post._id} post={post} />
-            ))}
-          </div>
+          knowledge.length === 0 ? (
+            <div className="bg-white border border-[#e9e9ed] rounded-3xl p-8 text-center text-xs text-[#737b8d]">
+              No knowledge guides published yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {knowledge.map((art) => (
+                <KnowledgeCard
+                  key={art._id}
+                  article={art}
+                  onOpenReader={(item) => navigate(`/knowledge/${item._id}`)}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

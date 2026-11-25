@@ -294,6 +294,21 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
           </button>
         </div>
 
+        {/* Origin Post Banner if converted from a post */}
+        {discussionData.originPostId && (
+          <div className="bg-[#fff8f2] border border-[#fde4cb] p-3.5 rounded-2xl flex items-center justify-between text-xs text-[#9d501b]">
+            <div className="flex items-center gap-2">
+              <span className="text-base">↗</span>
+              <div>
+                <span className="font-bold">Graduated from a community Post</span>
+                <span className="text-[11px] text-[#b46c3b] block">
+                  Originally posted by {discussionData.originMetadata?.authorName || discussionData.authorName}. Initial replies were carried over as contributions.
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-[#17213f] leading-snug">{discussionData.title}</h2>
           <div className="flex items-center gap-2.5 mt-3 pt-2">

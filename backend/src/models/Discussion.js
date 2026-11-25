@@ -64,6 +64,20 @@ const discussionSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    originPostId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Post',
+      default: null,
+      index: true,
+    },
+    originMetadata: {
+      postId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Post',
+      },
+      authorName: String,
+      createdAt: Date,
+    },
   },
   { timestamps: true }
 );

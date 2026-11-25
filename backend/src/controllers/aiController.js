@@ -1,24 +1,40 @@
+import {
+  checkAIAvailability,
+  aiGenerateOutline,
+  aiDraftSection,
+  getAISpendingStats,
+} from '../services/aiProviderService.js';
+
+export const getAIAvailability = async (req, res, next) => {
+  try {
+    const status = await checkAIAvailability(req.user?._id);
+    res.json(status);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const generateOutline = async (req, res, next) => {
   try {
-    const { topic, goal, sourceDiscussionContext } = req.body;
-    if (!topic) return res.status(400).json({ error: 'Topic is required' });
+    const { topic, draftId, sourceDiscussionContext } = req.body;
+    if (!topic || !topic.trim()) {
+      return res.status(400).json({ error: 'Topic is required' });
+    }
 
-    // AI Knowledge partner structured response
-    const outline = {
-      title: `${topic}: A Practical Guide`,
-      sections: [
-        { heading: '1. Introduction & Context', notes: 'Define the core problem and outline what readers will gain.' },
-        { heading: '2. The Core Insights & Field Observations', notes: sourceDiscussionContext ? 'Drawn from community discussion perspectives.' : 'Synthesizing key real-world practices.' },
-        { heading: '3. Actionable Framework & Rituals', notes: 'Concrete steps, workflows, and guardrails for implementation.' },
-        { heading: '4. Common Pitfalls & How to Avoid Them', notes: 'Edge cases, miscommunication risks, and anti-patterns.' },
-        { heading: '5. Conclusion & Looking Forward', notes: 'Key takeaways and community discussion prompts.' },
-      ],
-      keyTakeaways: [
-        'Small, intentional practices compound into lasting team culture.',
-        'Clarify expectations early to reduce cognitive friction.',
-      ],
-      provenanceNotice: sourceDiscussionContext ? 'Attributed to contributors in community discussion.' : 'Independent synthesis.',
-    };
+    const check = await checkAIAvailability(req.user._id);
+    if (!check.available) {
+      return res.status(403).json({
+        error: check.reason,
+        code: check.code,
+      });
+    }
+
+    const outline = await aiGenerateOutline({
+      userId: req.user._id,
+      draftId,
+      topic: topic.trim(),
+      contextNotes: sourceDiscussionContext || '',
+    });
 
     res.json({ outline });
   } catch (err) {
@@ -28,10 +44,42 @@ export const generateOutline = async (req, res, next) => {
 
 export const draftSection = async (req, res, next) => {
   try {
-    const { sectionHeading, topic, contextNotes } = req.body;
-    const draftText = `### ${sectionHeading || 'Section'}\n\nWhen exploring **${topic || 'this subject'}**, the most common friction point arises from ambiguous expectations. Rather than relying on rigid processes, effective practitioners establish clear lightweight principles that prioritize clarity, intentional check-ins, and shared accountability.\n\n${contextNotes ? `> *Community insight:* ${contextNotes}\n\n` : ''}By focusing on practical application rather than theoretical dogma, teams build trust and momentum faster.`;
+    const { sectionHeading, draftId, contextNotes, authorNotes } = req.body;
+    if (!sectionHeading || !sectionHeading.trim()) {
+      return res.status(400).json({ error: 'Section heading is required' });
+    }
+
+    const check = await checkAIAvailability(req.user._id);
+    if (!check.available) {
+      return res.status(403).json({
+        error: check.reason,
+        code: check.code,
+      });
+    }
+
+    const draftText = await aiDraftSection({
+      userId: req.user._id,
+      draftId,
+      sectionHeading: sectionHeading.trim(),
+      contextNotes: contextNotes || '',
+      authorNotes: authorNotes || '',
+    });
 
     res.json({ draftText });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getAIAdminStats = async (req, res, next) => {
+  try {
+    const isAdmin = req.user && (req.user.platformRole === 'admin' || req.user.role === 'admin');
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin authorization required' });
+    }
+
+    const stats = await getAISpendingStats();
+    res.json(stats);
   } catch (err) {
     next(err);
   }

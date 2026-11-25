@@ -3,6 +3,8 @@ import { User } from '../models/User.js';
 import { Save } from '../models/Notification.js';
 import { PostReply } from '../models/PostReply.js';
 import { Notification } from '../models/Notification.js';
+import { Discussion } from '../models/Discussion.js';
+import { DiscussionContribution } from '../models/DiscussionContribution.js';
 
 export const getPosts = async (req, res, next) => {
   try {
@@ -92,6 +94,13 @@ export const getPostById = async (req, res, next) => {
       PostReply.find({ postId: post._id }).sort({ createdAt: 1 }).lean(),
     ]);
 
+    let convertedDiscussion = null;
+    if (post.convertedToDiscussionId) {
+      convertedDiscussion = await Discussion.findById(post.convertedToDiscussionId)
+        .select('_id title commentsCount contributorsCount votes status category')
+        .lean();
+    }
+
     res.json({
       post: {
         ...post,
@@ -102,6 +111,7 @@ export const getPostById = async (req, res, next) => {
         likeCount: post.likeCount || 0,
         commentCount: replies.length || post.commentCount || post.commentsCount || 0,
         commentsCount: replies.length || post.commentsCount || post.commentCount || 0,
+        convertedDiscussion,
       },
       replies,
     });
@@ -190,6 +200,14 @@ export const addPostReply = async (req, res, next) => {
   try {
     const post = await Post.findById(req.params.postId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    if (post.convertedToDiscussionId) {
+      return res.status(409).json({
+        error: 'This conversation has been moved to a Discussion. Please post your reply in the linked Discussion.',
+        code: 'POST_CONVERTED_TO_DISCUSSION',
+        discussionId: post.convertedToDiscussionId,
+      });
+    }
 
     const body = req.body.body?.trim();
     const parentReplyId = req.body.parentReplyId || null;
@@ -294,3 +312,153 @@ export const savePost = async (req, res, next) => {
     next(err);
   }
 };
+
+export const convertPostToDiscussion = async (req, res, next) => {
+  try {
+    const { postId } = req.params;
+    const { title: customTitle, category: customCategory } = req.body || {};
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Authorization: only the post author or an admin/moderator can convert
+    const isAuthor = post.authorId && post.authorId.toString() === req.user._id.toString();
+    const isAdmin = req.user.platformRole === 'admin' || req.user.role === 'admin' || req.user.platformRole === 'moderator';
+    if (!isAuthor && !isAdmin) {
+      return res.status(403).json({ error: 'Only the author or staff can convert this post to a discussion' });
+    }
+
+    // Idempotency: If already converted, return existing Discussion
+    if (post.convertedToDiscussionId) {
+      const existingDiscussion = await Discussion.findById(post.convertedToDiscussionId);
+      if (existingDiscussion) {
+        return res.json({
+          success: true,
+          alreadyConverted: true,
+          message: 'Post has already been converted to a Discussion',
+          discussion: existingDiscussion,
+          migratedContributionsCount: existingDiscussion.commentsCount || 0,
+        });
+      }
+    }
+
+    // Determine discussion title
+    let discussionTitle = (customTitle || '').trim();
+    if (!discussionTitle) {
+      if (post.title && post.title.trim()) {
+        discussionTitle = post.title.trim();
+      } else {
+        const bodySnippet = post.body.trim().replace(/\s+/g, ' ');
+        discussionTitle = bodySnippet.length > 80 ? bodySnippet.slice(0, 77) + '...' : bodySnippet;
+      }
+    }
+
+    // Create the new Discussion
+    const discussion = await Discussion.create({
+      authorId: post.authorId,
+      authorName: post.authorName,
+      authorInitials: post.authorInitials,
+      authorColor: post.authorColor,
+      title: discussionTitle,
+      body: post.body,
+      category: customCategory || (post.circleName ? 'Community' : 'General'),
+      tags: Array.isArray(post.tags) ? post.tags : [],
+      circleId: post.circleId || null,
+      status: 'open',
+      votes: 0,
+      voters: [],
+      commentsCount: 0,
+      contributorsCount: 1,
+      originPostId: post._id,
+      originMetadata: {
+        postId: post._id,
+        authorName: post.authorName,
+        createdAt: post.createdAt,
+      },
+    });
+
+    // Migrate replies to contributions preserving hierarchy
+    const replies = await PostReply.find({ postId: post._id }).sort({ createdAt: 1 }).lean();
+    const replyIdToContributionIdMap = new Map();
+    const migratedContributions = [];
+
+    // First pass: top-level replies
+    for (const reply of replies) {
+      if (!reply.parentReplyId) {
+        const contribution = await DiscussionContribution.create({
+          discussionId: discussion._id,
+          authorId: reply.authorId,
+          authorName: reply.authorName,
+          authorInitials: reply.authorInitials,
+          authorColor: reply.authorColor,
+          parentContributionId: null,
+          body: reply.body,
+          votes: 0,
+          voters: [],
+          status: 'active',
+          depth: 0,
+          originPostReplyId: reply._id,
+          isMigratedFromPost: true,
+          createdAt: reply.createdAt || new Date(),
+        });
+        replyIdToContributionIdMap.set(reply._id.toString(), contribution._id);
+        migratedContributions.push(contribution);
+        await PostReply.updateOne({ _id: reply._id }, { migratedToContributionId: contribution._id });
+      }
+    }
+
+    // Second pass: child replies
+    for (const reply of replies) {
+      if (reply.parentReplyId) {
+        const parentContributionId = replyIdToContributionIdMap.get(reply.parentReplyId.toString()) || null;
+        const contribution = await DiscussionContribution.create({
+          discussionId: discussion._id,
+          authorId: reply.authorId,
+          authorName: reply.authorName,
+          authorInitials: reply.authorInitials,
+          authorColor: reply.authorColor,
+          parentContributionId,
+          body: reply.body,
+          votes: 0,
+          voters: [],
+          status: 'active',
+          depth: parentContributionId ? 1 : 0,
+          originPostReplyId: reply._id,
+          isMigratedFromPost: true,
+          createdAt: reply.createdAt || new Date(),
+        });
+        replyIdToContributionIdMap.set(reply._id.toString(), contribution._id);
+        migratedContributions.push(contribution);
+        await PostReply.updateOne({ _id: reply._id }, { migratedToContributionId: contribution._id });
+      }
+    }
+
+    // Compute canonical contributor & contribution counts
+    const distinctContributors = new Set([
+      post.authorId.toString(),
+      ...migratedContributions.map((c) => c.authorId.toString()),
+    ]);
+
+    discussion.commentsCount = migratedContributions.length;
+    discussion.contributorsCount = distinctContributors.size;
+    await discussion.save();
+
+    // Link Post to the Discussion
+    post.convertedToDiscussionId = discussion._id;
+    post.convertedAt = new Date();
+    await post.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Post successfully converted to Discussion',
+      discussion,
+      migratedContributionsCount: migratedContributions.length,
+      contributorsCount: distinctContributors.size,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+

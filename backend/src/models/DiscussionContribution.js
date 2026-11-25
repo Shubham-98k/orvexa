@@ -43,6 +43,16 @@ const contributionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    originPostReplyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PostReply',
+      default: null,
+      index: true,
+    },
+    isMigratedFromPost: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

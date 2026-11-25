@@ -75,6 +75,22 @@ export default function PostCard({ post, onPostUpdated, onOpenDetail }) {
         </div>
       )}
 
+      {post.convertedToDiscussionId && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDetail?.(post);
+          }}
+          className="bg-[#f0f4ff] border border-[#d6e2ff] text-[#3f5ce8] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between hover:bg-[#e6edff] transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Conversation moved to Discussion</span>
+          </span>
+          <span className="text-[11px] font-bold">View Discussion →</span>
+        </div>
+      )}
+
       <div
         onClick={() => onOpenDetail?.(post)}
         className="border-t border-[#f0f0f2] pt-3 flex items-center justify-between text-[11px] text-[#798192] cursor-pointer"

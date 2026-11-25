@@ -27,6 +27,12 @@ const postReplySchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    migratedToContributionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'DiscussionContribution',
+      default: null,
+      index: true,
+    },
   },
   { timestamps: true }
 );

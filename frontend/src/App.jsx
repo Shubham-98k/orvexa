@@ -18,6 +18,8 @@ import VerifyEmailPage from './views/auth/VerifyEmailPage'
 // App views (previewable during 120s guest session or authenticated)
 import DiscoverView from './views/DiscoverView'
 import KnowledgeView from './views/KnowledgeView'
+import KnowledgeStudioView from './views/KnowledgeStudioView'
+import KnowledgeReaderView from './views/KnowledgeReaderView'
 import CirclesView from './views/CirclesView'
 import PeopleView from './views/PeopleView'
 import ProfileView from './views/ProfileView'
@@ -53,6 +55,23 @@ export default function App() {
           <Route path="/app" element={<DiscoverView />} />
           <Route path="/discover" element={<DiscoverView />} />
           <Route path="/knowledge" element={<KnowledgeView />} />
+          <Route path="/knowledge/:articleId" element={<KnowledgeReaderView />} />
+          <Route
+            path="/knowledge/studio/:draftId"
+            element={
+              <ProtectedRoute>
+                <KnowledgeStudioView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/knowledge/studio"
+            element={
+              <ProtectedRoute>
+                <KnowledgeStudioView />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/circles" element={<CirclesView />} />
           <Route path="/people" element={<PeopleView />} />
           <Route path="/people-companies" element={<Navigate to="/people" replace />} />

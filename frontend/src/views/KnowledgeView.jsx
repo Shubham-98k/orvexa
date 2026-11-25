@@ -1,90 +1,92 @@
-import React, { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { Bot, Sparkles, BookOpen, ExternalLink, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, PenLine, BookOpen, Layers, Filter, Sparkles, ChevronRight } from 'lucide-react';
 import KnowledgeCard from '../components/discover/KnowledgeCard';
-import Avatar from '../components/common/Avatar';
-import { apiGet, apiPost } from '../api/client';
+import { apiGet } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
+
+const FORMATS = ['All', 'Guide', 'Explainer', 'Research', 'Perspective', 'Notes'];
+const CATEGORIES = ['All topics', 'Thinking', 'Culture', 'Technology', 'UX', 'Engineering', 'Learning', 'Work & Culture'];
+const SORTS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'saved', label: 'Most saved' },
+  { value: 'helpful', label: 'Most helpful' },
+];
 
 export default function KnowledgeView() {
-  const { onOpenCreate, showToast } = useOutletContext();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
   const [articles, setArticles] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [selectedArticle, setSelectedArticle] = useState(null);
-  const [helpfulVoted, setHelpfulVoted] = useState(false);
+  const [draftsCount, setDraftsCount] = useState(0);
 
-  // AI Studio modal
-  const [aiModalOpen, setAiModalOpen] = useState(false);
-  const [aiTopic, setAiTopic] = useState('');
-  const [aiOutline, setAiOutline] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  // Filters & Search
+  const [selectedFormat, setSelectedFormat] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('All topics');
+  const [selectedSort, setSelectedSort] = useState('newest');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
 
+  // Debounce search query
   useEffect(() => {
-    apiGet('/knowledge')
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Load user drafts count if logged in
+  useEffect(() => {
+    if (user) {
+      apiGet('/knowledge/drafts')
+        .then((res) => {
+          if (Array.isArray(res?.drafts)) {
+            setDraftsCount(res.drafts.length);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user]);
+
+  // Fetch articles from backend API
+  const fetchArticles = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (selectedCategory !== 'All topics') params.set('category', selectedCategory);
+    if (selectedFormat !== 'All') params.set('format', selectedFormat.toLowerCase());
+    if (selectedSort) params.set('sort', selectedSort);
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    params.set('page', String(page));
+    params.set('limit', '12');
+
+    apiGet(`/knowledge?${params.toString()}`)
       .then((res) => {
         setArticles(res?.articles || []);
+        setTotal(res?.total || 0);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedCategory, selectedFormat, selectedSort, debouncedSearch, page]);
 
-  const handleGenerateOutline = async () => {
-    if (!aiTopic.trim()) {
-      showToast('Please enter a subject for the AI partner');
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const res = await apiPost('/ai/knowledge/outline', { topic: aiTopic.trim() });
-      setAiOutline(res.outline);
-    } catch {
-      setAiOutline({
-        title: `${aiTopic}: An Actionable Framework`,
-        sections: [
-          '01 / Foundational Context & Core Problem',
-          '02 / Real-World Patterns & Field Observations',
-          '03 / Concrete Practices & Implementation Steps',
-          '04 / Failure Modes & Countermeasures',
-          '05 / Conclusion & Community Follow-Ups',
-        ],
-        draftSummary: `A comprehensive distillation of ${aiTopic}, designed to give teams and individuals immediate practical clarity.`,
-      });
-    } finally {
-      setAiLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchArticles();
+  }, [fetchArticles]);
 
-  const handlePublishAiArticle = async () => {
-    if (!aiOutline) return;
-    try {
-      const res = await apiPost('/knowledge', {
-        title: aiOutline.title,
-        summary: aiOutline.draftSummary || 'AI-assisted research outline',
-        content: `### ${aiOutline.title}\n\n${aiOutline.draftSummary}\n\n${(aiOutline.sections || []).map((s) => `#### ${typeof s === 'string' ? s : s.heading}\nFocus on human-led verification and incremental execution.`).join('\n\n')}`,
-        category: 'Thinking',
-        readTime: '6 min read',
-        source: 'Created with AI partner',
-      });
-      if (res?.article) {
-        setArticles([res.article, ...articles]);
-        setAiModalOpen(false);
-        setAiOutline(null);
-        setAiTopic('');
-        showToast('Knowledge article published successfully!');
-      }
-    } catch (err) {
-      alert(err.message || 'Failed to publish.');
-    }
-  };
+  const featuredArticle = articles.length > 0 ? articles[0] : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Topline Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#f0f0f2]">
         <div>
           <div className="text-[11px] font-extrabold uppercase tracking-[1.1px] text-[#e66c68] mb-1">
             ORVEXA KNOWLEDGE
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-1.2px] text-[#17213f] leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17213f] leading-tight">
             Knowledge worth keeping
           </h1>
           <p className="text-xs sm:text-[13.5px] text-[#737b8d] mt-1">
@@ -92,172 +94,193 @@ export default function KnowledgeView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {user && draftsCount > 0 && (
+            <button
+              onClick={() => navigate('/knowledge/studio')}
+              className="bg-[#f0f4ff] hover:bg-[#e6edff] text-[#3f5ce8] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Drafts ({draftsCount})</span>
+            </button>
+          )}
+
           <button
-            onClick={() => setAiModalOpen(true)}
-            className="bg-[#8b63d9] hover:bg-[#7a52c7] text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+            onClick={() => navigate('/knowledge/studio')}
+            className="bg-[#3f5ce8] hover:bg-[#324ecc] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-2"
           >
-            <Bot className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>AI Writing Partner</span>
-          </button>
-          <button
-            onClick={() => onOpenCreate('Knowledge article')}
-            className="bg-[#3f5ce8] hover:bg-[#324ecc] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer"
-          >
-            Publish Article
+            <PenLine className="w-3.5 h-3.5" />
+            <span>Write Article</span>
           </button>
         </div>
       </div>
 
-      {/* Featured Banner */}
-      <section className="bg-[#526ce0] text-white p-6 sm:p-7 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-[0_5px_15px_rgba(82,108,224,0.18)]">
-        <div className="space-y-2 max-w-xl">
-          <span className="inline-block bg-white/25 text-white text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded">
-            FEATURED PUBLICATION
-          </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-            Ideas that become useful knowledge.
+      {/* Featured Publication Banner */}
+      {featuredArticle && !debouncedSearch && selectedCategory === 'All topics' && selectedFormat === 'All' && (
+        <section
+          onClick={() => navigate(`/knowledge/${featuredArticle._id}`)}
+          className="bg-gradient-to-br from-[#4f67e0] to-[#3a52c7] text-white p-6 sm:p-8 rounded-3xl cursor-pointer hover:shadow-lg transition-all space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <span className="bg-white/25 text-white text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded">
+              FEATURED PUBLICATION
+            </span>
+            <span className="text-xs text-[#e0e5ff] font-semibold">{featuredArticle.readTime || '5 min read'}</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-snug">
+            {featuredArticle.title}
           </h2>
-          <p className="text-xs sm:text-sm text-[#eef1ff] leading-relaxed">
-            Read thoughtful resources, follow their sources, and build on what the community has learned.
+          <p className="text-xs sm:text-sm text-[#eef1ff] leading-relaxed line-clamp-2 max-w-2xl">
+            {featuredArticle.summary}
           </p>
-        </div>
-      </section>
+          <div className="pt-2 flex items-center gap-2 text-xs font-semibold text-[#e0e5ff]">
+            <span>By {featuredArticle.authorName}</span>
+            <span>·</span>
+            <span>{featuredArticle.category}</span>
+            <span className="ml-auto flex items-center gap-1 font-bold text-white">
+              Read Guide <ChevronRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+        </section>
+      )}
 
-      {/* Article List */}
+      {/* Filter and Search Bar */}
+      <div className="bg-white border border-[#e9e9ed] rounded-2xl p-4 shadow-2xs space-y-3">
+        {/* Search input & Sort */}
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-[#8b92a1] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search knowledge by title, topic, or keyword..."
+              className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-[#e9e9ed] focus:outline-none focus:border-[#3f5ce8]"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <span className="text-[11px] font-semibold text-[#737b8d]">Sort:</span>
+            <select
+              value={selectedSort}
+              onChange={(e) => {
+                setSelectedSort(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-1.5 text-xs font-bold text-[#17213f] bg-[#f7f7f8] border border-[#e9e9ed] rounded-xl focus:outline-none cursor-pointer"
+            >
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Format & Category Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#f0f0f2]">
+          <span className="text-[10px] font-bold uppercase text-[#8b92a1] mr-1">Format:</span>
+          {FORMATS.map((fmt) => (
+            <button
+              key={fmt}
+              type="button"
+              onClick={() => {
+                setSelectedFormat(fmt);
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                selectedFormat === fmt
+                  ? 'bg-[#3f5ce8] text-white'
+                  : 'bg-[#f7f7f8] text-[#555d70] hover:bg-[#eef1ff] hover:text-[#3f5ce8]'
+              }`}
+            >
+              {fmt}
+            </button>
+          ))}
+
+          <span className="text-xs text-[#d1d5db] mx-1">|</span>
+
+          <span className="text-[10px] font-bold uppercase text-[#8b92a1] mr-1">Category:</span>
+          {CATEGORIES.slice(0, 5).map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => {
+                setSelectedCategory(cat);
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                selectedCategory === cat
+                  ? 'bg-[#17213f] text-white font-bold'
+                  : 'bg-[#f7f7f8] text-[#737b8d] hover:text-[#17213f]'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Article Grid / List */}
       <div className="space-y-3">
         {loading ? (
-          <div className="py-12 text-center text-xs text-[#8b92a1]">Loading knowledge base...</div>
+          <div className="py-16 text-center text-xs text-[#8b92a1]">
+            Loading knowledge articles...
+          </div>
         ) : articles.length === 0 ? (
-          <div className="py-16 text-center text-xs text-[#8b92a1] border border-dashed border-[#e9e9ed] rounded-2xl space-y-2">
-            <p className="font-semibold text-[#17213f]">No knowledge articles published yet.</p>
-            <p>Use the AI Writing Partner or manual editor to publish the first guide!</p>
+          <div className="py-16 text-center text-xs text-[#8b92a1] border border-dashed border-[#e9e9ed] rounded-3xl space-y-2 bg-white">
+            <BookOpen className="w-8 h-8 text-[#b0b6c4] mx-auto" />
+            <p className="font-bold text-[#17213f]">No knowledge articles found</p>
+            <p className="text-[11.5px] max-w-sm mx-auto text-[#737b8d]">
+              {debouncedSearch || selectedFormat !== 'All' || selectedCategory !== 'All topics'
+                ? 'Try adjusting your filters or search terms.'
+                : 'Be the first to synthesize a discussion or write a practical guide.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/knowledge/studio')}
+              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-[#3f5ce8] hover:bg-[#324ecc] text-white rounded-xl text-xs font-bold cursor-pointer"
+            >
+              <PenLine className="w-3.5 h-3.5" />
+              <span>Write first article</span>
+            </button>
           </div>
         ) : (
           articles.map((item) => (
-            <KnowledgeCard key={item._id} article={item} onOpenReader={(art) => setSelectedArticle(art)} />
+            <KnowledgeCard
+              key={item._id}
+              article={item}
+              onOpenReader={(art) => navigate(`/knowledge/${art._id}`)}
+            />
           ))
         )}
       </div>
 
-      {/* Reader Modal */}
-      {selectedArticle && (
-        <div
-          onClick={(e) => e.target === e.currentTarget && setSelectedArticle(null)}
-          className="fixed inset-0 bg-[#17213f]/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
-        >
-          <div className="bg-white rounded-3xl p-6 sm:p-9 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl border border-[#e9e9ed] space-y-6">
-            <div className="flex items-center justify-between border-b border-[#f0f0f2] pb-3">
-              <span className="bg-[#eef1ff] text-[#5369ce] px-2.5 py-0.5 rounded text-[10px] font-bold uppercase">
-                {selectedArticle.category || 'Knowledge'}
-              </span>
-              <button onClick={() => setSelectedArticle(null)} className="text-[#8b92a1] hover:text-[#17213f] p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-[#17213f] leading-tight">{selectedArticle.title}</h1>
-              {selectedArticle.subtitle && (
-                <p className="text-sm font-semibold text-[#737b8d] mt-1">{selectedArticle.subtitle}</p>
-              )}
-              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-[#f0f0f2]">
-                <Avatar initials={selectedArticle.authorInitials || 'OP'} color={selectedArticle.authorColor || 'green'} />
-                <div>
-                  <div className="text-xs font-bold text-[#17213f]">{selectedArticle.authorName}</div>
-                  <div className="text-[10px] text-[#9298a7]">Published in Orvexa Knowledge</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="prose prose-sm max-w-none text-[#231F20] text-xs sm:text-[13.5px] leading-relaxed whitespace-pre-line bg-[#fcfcfd] p-5 rounded-2xl border border-[#e9e9ed]">
-              {selectedArticle.content || selectedArticle.summary}
-            </div>
-
-            <div className="border-t border-[#f0f0f2] pt-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#737b8d]">Was this resource useful?</span>
-                <button
-                  onClick={() => {
-                    setHelpfulVoted((prev) => !prev);
-                    showToast(helpfulVoted ? 'Feedback cleared' : 'Thank you for your feedback!');
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                    helpfulVoted ? 'bg-[#eaf6f0] text-[#57977b]' : 'bg-[#f0f1f4] text-[#17213f]'
-                  }`}
-                >
-                  {helpfulVoted ? '✓ Yes, useful' : 'Yes'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Studio Modal */}
-      {aiModalOpen && (
-        <div
-          onClick={(e) => e.target === e.currentTarget && setAiModalOpen(false)}
-          className="fixed inset-0 bg-[#17213f]/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
-        >
-          <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-xl shadow-2xl border border-[#e9e9ed] space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-[#f0f0f2]">
-              <div className="flex items-center gap-2 text-[#8b63d9]">
-                <Bot className="w-5 h-5 stroke-[2.5]" />
-                <h2 className="text-base font-bold text-[#17213f]">Orvexa AI Writing Partner</h2>
-              </div>
-              <button onClick={() => setAiModalOpen(false)} className="text-[#8b92a1] hover:text-[#17213f] p-1">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-[#737b8d] leading-relaxed">
-              Plan and outline high-quality Knowledge. AI assists you in structuring ideas, while you review and publish the final article.
-            </p>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-[#17213f] mb-1">Subject / Question</label>
-                <input
-                  type="text"
-                  value={aiTopic}
-                  onChange={(e) => setAiTopic(e.target.value)}
-                  placeholder="e.g. Building resilient async team rituals"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#e9e9ed] text-xs focus:outline-none focus:border-[#8b63d9]"
-                />
-              </div>
-
-              <button
-                onClick={handleGenerateOutline}
-                disabled={aiLoading}
-                className="w-full bg-[#8b63d9] hover:bg-[#7a52c7] text-white py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{aiLoading ? 'Generating outline...' : 'Generate proposed structure'}</span>
-              </button>
-
-              {aiOutline && (
-                <div className="p-4 rounded-xl bg-[#f8f6fc] border border-[#e8dff7] space-y-2 mt-3 animate-in fade-in duration-200">
-                  <h4 className="text-xs font-bold text-[#17213f]">{aiOutline.title}</h4>
-                  <p className="text-[11px] text-[#737b8d]">{aiOutline.draftSummary}</p>
-                  <ul className="space-y-1 text-xs text-[#4a5265] pt-1">
-                    {(aiOutline.sections || []).map((s, idx) => (
-                      <li key={idx} className="flex items-center gap-1.5 font-medium">
-                        <span className="text-[#8b63d9]">›</span>
-                        <span>{typeof s === 'string' ? s : s.heading}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <button
-                    onClick={handlePublishAiArticle}
-                    className="mt-3 w-full bg-[#3f5ce8] hover:bg-[#324ecc] text-white py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Accept & Publish to Knowledge
-                  </button>
-                </div>
-              )}
-            </div>
+      {/* Pagination Footer */}
+      {total > 12 && (
+        <div className="flex items-center justify-between pt-4 border-t border-[#f0f0f2] text-xs font-semibold text-[#737b8d]">
+          <span>
+            Showing {articles.length} of {total} publications
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-3 py-1.5 rounded-xl border border-[#e9e9ed] bg-white disabled:opacity-40 cursor-pointer"
+            >
+              Previous
+            </button>
+            <span>Page {page}</span>
+            <button
+              type="button"
+              disabled={page * 12 >= total}
+              onClick={() => setPage((p) => p + 1)}
+              className="px-3 py-1.5 rounded-xl border border-[#e9e9ed] bg-white disabled:opacity-40 cursor-pointer"
+            >
+              Next
+            </button>
           </div>
         </div>
       )}

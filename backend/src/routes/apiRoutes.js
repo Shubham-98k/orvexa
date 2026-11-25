@@ -66,6 +66,8 @@ router.post('/posts/:postId/like', requireAuth, postCtrl.toggleLikePost);
 router.get('/posts/:postId/replies', requireAuth, postCtrl.getPostReplies);
 router.post('/posts/:postId/replies', requireAuth, postCtrl.addPostReply);
 router.post('/posts/:postId/save', requireAuth, postCtrl.savePost);
+router.post('/posts/:postId/convert-to-discussion', requireAuth, postCtrl.convertPostToDiscussion);
+router.post('/posts/:postId/knowledge-drafts', requireAuth, knowCtrl.createDraftFromPost);
 
 // ==========================================
 // 6. DISCUSSIONS
@@ -77,11 +79,22 @@ router.post('/discussions/:discussionId/upvote', requireAuth, discCtrl.upvoteDis
 router.post('/discussions/:discussionId/contributions', requireAuth, discCtrl.addContribution);
 router.patch('/discussions/:discussionId/contributions/:contributionId', requireAuth, discCtrl.updateContribution);
 router.delete('/discussions/:discussionId/contributions/:contributionId', requireAuth, discCtrl.deleteContribution);
+router.post('/discussions/:discussionId/knowledge-drafts', requireAuth, knowCtrl.createDraftFromDiscussion);
 
 // ==========================================
 // 7. KNOWLEDGE
 // ==========================================
 router.get('/knowledge', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, knowCtrl.getKnowledgeArticles);
+router.get('/knowledge/drafts', requireAuth, knowCtrl.getUserDrafts);
+router.post('/knowledge/drafts', requireAuth, knowCtrl.createIndependentDraft);
+router.get('/knowledge/drafts/:draftId', requireAuth, knowCtrl.getDraftById);
+router.patch('/knowledge/drafts/:draftId', requireAuth, knowCtrl.updateDraft);
+router.delete('/knowledge/drafts/:draftId', requireAuth, knowCtrl.discardDraft);
+router.post('/knowledge/drafts/:draftId/publish', requireAuth, knowCtrl.publishDraft);
+router.post('/knowledge/drafts/:draftId/update-sources', requireAuth, knowCtrl.updateDraftSources);
+router.get('/knowledge/:articleId/versions', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, knowCtrl.getArticleVersions);
+router.post('/knowledge/:articleId/restore-version/:versionId', requireAuth, knowCtrl.restoreArticleVersion);
+router.get('/knowledge/:articleId/sources', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, knowCtrl.getArticleSources);
 router.get('/knowledge/:articleId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, knowCtrl.getKnowledgeById);
 router.post('/knowledge', requireAuth, knowCtrl.createKnowledge);
 router.post('/knowledge/:articleId/helpful', requireAuth, knowCtrl.voteHelpful);
@@ -135,7 +148,9 @@ router.post('/reports', requireAuth, adminCtrl.submitReport);
 // ==========================================
 // 14. AI WRITING PARTNER
 // ==========================================
+router.get('/ai/status', optionalAuth, aiCtrl.getAIAvailability);
 router.post('/ai/knowledge/outline', requireAuth, aiCtrl.generateOutline);
 router.post('/ai/knowledge/draft-section', requireAuth, aiCtrl.draftSection);
+router.get('/admin/ai/usage', requireAuth, aiCtrl.getAIAdminStats);
 
 export default router;

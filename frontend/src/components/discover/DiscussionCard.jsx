@@ -62,6 +62,11 @@ export default function DiscussionCard({ discussion, onOpenDetail }) {
             <span className="bg-[#fff0ee] text-[#bd625e] px-2 py-0.5 rounded font-bold text-[10px]">
               {discussion.category || 'General'}
             </span>
+            {discussion.originPostId && (
+              <span className="bg-[#fff8f2] text-[#b46c3b] px-2 py-0.5 rounded font-bold text-[10px] border border-[#fde4cb]">
+                ↗ From Post
+              </span>
+            )}
             <span>• {contributorCount} {contributorCount === 1 ? 'contributor' : 'contributors'}</span>
             <span className="text-[#e66c68] font-bold">◉ {discussion.status || 'open'}</span>
           </div>

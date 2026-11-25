@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { Search, Sparkles, Users, Compass } from 'lucide-react';
 import PostCard from '../components/discover/PostCard';
 import DiscussionCard from '../components/discover/DiscussionCard';
@@ -7,12 +7,13 @@ import KnowledgeCard from '../components/discover/KnowledgeCard';
 import DiscussionDetailModal from '../components/discussion/DiscussionDetailModal';
 import PostDetailModal from '../components/discover/PostDetailModal';
 import Avatar from '../components/common/Avatar';
-import { apiGet } from '../api/client';
+import { apiGet, apiPost } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
 export default function DiscoverView() {
   const { onOpenCreate, showToast } = useOutletContext();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('For you'); // 'For you' | 'Trending' | 'Following' | 'Latest'
   const [contentTypeFilter, setContentTypeFilter] = useState('All'); // 'All' | 'Posts' | 'Discussions' | 'Knowledge'
@@ -319,6 +320,28 @@ export default function DiscoverView() {
             setActivePost(null);
             setFocusPostReply(false);
           }}
+          onOpenDiscussion={(discussion) => {
+            setActivePost(null);
+            if (typeof discussion === 'string') {
+              apiGet(`/discussions/${discussion}`).then((res) => {
+                if (res?.discussion) setActiveDiscussion(res.discussion);
+              });
+            } else {
+              setActiveDiscussion(discussion);
+            }
+          }}
+          onOpenCreateKnowledge={async (post) => {
+            setActivePost(null);
+            try {
+              const res = await apiPost(`/posts/${post._id}/knowledge-drafts`, {});
+              if (res?.draft?._id) {
+                showToast('Knowledge studio opened from post');
+                navigate(`/knowledge/studio/${res.draft._id}`);
+              }
+            } catch (err) {
+              alert(err.message || 'Could not start Knowledge draft');
+            }
+          }}
           onPostUpdated={(updatedPost) => {
             setActivePost(updatedPost);
             setFeedItems((items) => items.map((feedItem) => (
@@ -334,8 +357,23 @@ export default function DiscoverView() {
           discussion={activeDiscussion}
           onClose={() => setActiveDiscussion(null)}
           onDiscussionUpdate={handleDiscussionUpdate}
-          onOpenAiStudio={() => {
-            showToast('Knowledge studio opened for discussion');
+          onOpenPost={(postId) => {
+            setActiveDiscussion(null);
+            apiGet(`/posts/${postId}`).then((res) => {
+              if (res?.post) setActivePost(res.post);
+            });
+          }}
+          onOpenAiStudio={async (discussion) => {
+            setActiveDiscussion(null);
+            try {
+              const res = await apiPost(`/discussions/${discussion._id}/knowledge-drafts`, {});
+              if (res?.draft?._id) {
+                showToast('Knowledge studio opened for discussion');
+                navigate(`/knowledge/studio/${res.draft._id}`);
+              }
+            } catch (err) {
+              alert(err.message || 'Could not start Knowledge draft');
+            }
           }}
         />
       )}

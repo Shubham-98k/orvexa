@@ -1,5 +1,6 @@
 import { User } from '../models/User.js';
 import { Post } from '../models/Post.js';
+import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 
 /**
  * GET /api/users/me
@@ -29,13 +30,23 @@ export async function getUserByUsername(req, res) {
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Fetch user's public posts
-    const posts = await Post.find({
-      $or: [{ authorName: user.displayName }, { authorId: user._id }],
-      status: 'published',
-    })
-      .sort({ createdAt: -1 })
-      .limit(20);
+    // Fetch user's public posts and knowledge articles
+    const [posts, knowledge] = await Promise.all([
+      Post.find({
+        $or: [{ authorName: user.displayName }, { authorId: user._id }],
+        status: 'published',
+      })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean(),
+      KnowledgeArticle.find({
+        $or: [{ authorName: user.displayName }, { authorId: user._id }],
+        status: 'published',
+      })
+        .sort({ publishedAt: -1, createdAt: -1 })
+        .limit(20)
+        .lean(),
+    ]);
 
     const isFollowing = req.user
       ? user.followers?.some((f) => f.toString() === req.user._id.toString())
@@ -60,6 +71,7 @@ export async function getUserByUsername(req, res) {
         isSelf: req.user ? req.user._id.toString() === user._id.toString() : false,
       },
       posts,
+      knowledge,
     });
   } catch (err) {
     res.status(500).json({ error: 'Server error', details: err.message });

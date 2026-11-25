@@ -156,3 +156,55 @@
   - Canonical 3-contribution / 2-contributor logic.
   - Trending time-decay algorithm.
   - Feed diversity interleaving.
+
+---
+
+## Knowledge System & Post-to-Discussion Implementation (Spec 2.0)
+
+### 1. Post-to-Discussion Conversion
+- **Separate Linked Entity:** `POST /api/posts/:postId/convert-to-discussion` creates a separate `Discussion` record with `originPostId` and `originMetadata` while keeping the original `Post` intact with all social engagement.
+- **Reply Migration:** Migrates active `PostReply` records into `DiscussionContribution` records, preserving author identity, timestamps (`createdAt`), and parent-child reply structure (`parentContributionId`).
+- **One-Way Conversation Migration:** Once converted, `Post.convertedToDiscussionId` is set; `POST /api/posts/:postId/replies` rejects new replies with `409 Conflict` (code `POST_CONVERTED_TO_DISCUSSION`) directing users to the linked Discussion.
+- **UI States:** `PostCard` and `PostDetailModal` render banners linking to the Discussion and replacing the reply composer with a notice. `DiscussionDetailModal` renders a "Graduated from community Post" attribution banner.
+
+### 2. Knowledge Creation Directly from Post
+- `POST /api/posts/:postId/knowledge-drafts`: Allows creating a Knowledge article directly from a Post without prior conversion.
+- Works cleanly with 0 replies or with replies toggled on.
+- Uses the unified Zero-Cost Analysis Engine to build outline and draft blocks with citations attributed to the original post author and replies.
+
+### 3. Zero-Cost-First Analysis Pipeline
+- **Pure Node.js & MongoDB Engine:** Zero external AI dependencies or spending required.
+- **Cursor Batching:** Streams discussion contributions and post replies within memory bounds (`sourceIngestionService.js`).
+- **Algorithmic Outline & TF-IDF Themes:** Computes exact contributor/contribution counts, term frequency, inverse document frequency, and clusters contributions into representative themes and contrasting perspectives (`analysisPipelineService.js`).
+
+### 4. Knowledge Studio & Block-Based Editor
+- **Structured Block Editor:** Safe block schema supporting H1–H3, paragraphs, blockquotes with attribution, callouts, source citations, and code blocks (`EditorBlock.jsx`, `EditorToolbar.jsx`).
+- **Debounced Autosave:** Autosaves draft updates to `/api/knowledge/drafts/:id` with live status (`Saving...`, `Saved`).
+- **Source Selection & Provenance Side Pane:** Displays snapshot metrics, discovered themes, and allows one-click quotation insertion into the draft (`SourceSelectionPanel.jsx`, `OutlineEditor.jsx`).
+
+### 5. Editorial Reader & Explore Hub
+- **Dedicated Editorial Reader:** `/knowledge/:articleId` features Table of Contents, reading progress, server-calculated reading time, author follow, helpfulness feedback counter, and expandable Source Provenance details (`KnowledgeReaderView.jsx`).
+- **Explore Hub:** `/knowledge` supports full-text search, format filters (Guide, Explainer, Research, Perspective, Notes), category filters, sorting, and server-side pagination (`KnowledgeView.jsx`).
+- **Author Profile Integration:** `ProfileView.jsx` displays published Knowledge publications on the author's profile.
+
+### 6. Versioning, Rollback & Incremental Updates
+- **Immutable Checkpoints:** Saves immutable version snapshots in `KnowledgeVersion` on publication.
+- **Rollback API:** `POST /api/knowledge/:articleId/restore-version/:versionId` allows rolling back to any earlier checkpoint.
+- **Incremental Source Updates:** `POST /api/knowledge/drafts/:draftId/update-sources` detects new contributions posted after the snapshot boundary and merges them into the analysis.
+
+### 7. Optional AI Provider & Spending Controls
+- **Disabled by Default:** If `AI_ENABLED` is not explicitly set, optional AI endpoints gracefully return `AI_PROVIDER_DISABLED`.
+- **Spending Caps & Ledger:** Enforces per-user monthly limits and global platform budget in `AIUsageLedger`.
+
+### 8. Automated Verification Suite
+- Automated test suite in `backend/tests/knowledgeAndConversion.test.js` validating:
+  1. Post schema conversion fields.
+  2. Discussion originPost fields and provenance.
+  3. DiscussionContribution migrated reply provenance.
+  4. Post reply lockdown after conversion (409 Conflict).
+  5. Reply migration preserving timestamps, authorship, and nesting.
+  6. Zero-cost analysis pipeline counts and themes.
+  7. Knowledge creation directly from Post with 0 replies.
+  8. KnowledgeArticle structured blocks, reading time, and virtual aliases.
+  9. Version rollback and checkpointing.
+  10. AI spending disabled by default.

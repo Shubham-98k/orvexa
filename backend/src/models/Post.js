@@ -67,6 +67,16 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    convertedToDiscussionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Discussion',
+      default: null,
+      index: true,
+    },
+    convertedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
