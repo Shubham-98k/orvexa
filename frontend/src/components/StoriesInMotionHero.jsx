@@ -439,7 +439,7 @@ export default function StoriesInMotionHero() {
               <OrvexaNewspaperBadge className="w-8 h-8 transition-transform duration-300 group-hover:scale-105" />
             </a>
 
-            <nav className="hidden md:flex items-center gap-7 lg:gap-8 bg-white/80 backdrop-blur-md px-6 py-2 rounded-full border border-[#231F20]/10 shadow-2xs">
+            {/* <nav className="hidden md:flex items-center gap-7 lg:gap-8 bg-white/80 backdrop-blur-md px-6 py-2 rounded-full border border-[#231F20]/10 shadow-2xs">
               {NAV_ITEMS.map((item) => {
                 const isActive = activeNav === item;
                 return (
@@ -457,7 +457,7 @@ export default function StoriesInMotionHero() {
                   </button>
                 );
               })}
-            </nav>
+            </nav> */}
 
             <div className="flex items-center gap-2">
               <Link
@@ -468,16 +468,6 @@ export default function StoriesInMotionHero() {
                 <span>Enter App</span>
                 <ArrowRight className="w-3 h-3 stroke-[2.5]" />
               </Link>
-
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => handleNavClick('Publications')}
-                className="bg-[#23272A] hover:bg-[#141719] text-white text-[12px] font-medium px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-lg flex items-center gap-2 shadow-[0_3px_0_#000000] transition-colors cursor-pointer"
-              >
-                <span>Start Writing</span>
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.2]" />
-              </motion.button>
 
               {/* Mobile menu toggle */}
               <button
