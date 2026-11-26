@@ -57,25 +57,25 @@ export default function PeopleView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="border border-[#e9e9ed] rounded-3xl p-6 sm:p-8 bg-white space-y-5 shadow-sm">
+      <div className="border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-6 sm:p-8 bg-white dark:bg-slate-900 space-y-5 shadow-sm">
         <div>
-          <h1 className="text-2xl font-black text-[#17213f] tracking-tight">
+          <h1 className="text-2xl font-black text-[#17213f] dark:text-white tracking-tight">
             People
           </h1>
-          <p className="text-xs text-[#737b8d] mt-1">
+          <p className="text-xs text-[#737b8d] dark:text-slate-400 mt-1">
             Discover and connect with thinkers, writers, and contributors across the Orvexa community.
           </p>
         </div>
 
         {/* Search Bar */}
         <div className="relative">
-          <Search className="w-4 h-4 text-[#737b8d] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#737b8d] dark:text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search people by display name or @username..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#f7f7f8] border border-[#e9e9ed] rounded-2xl pl-10 pr-4 py-2.5 text-xs text-[#17213f] focus:outline-none focus:ring-2 focus:ring-[#3f5ce8]"
+            className="w-full bg-[#f7f7f8] dark:bg-slate-800 border border-[#e9e9ed] dark:border-slate-700 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-[#17213f] dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3f5ce8]"
           />
         </div>
       </div>
@@ -86,14 +86,14 @@ export default function PeopleView() {
           <div className="w-8 h-8 border-3 border-[#3f5ce8] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : error ? (
-        <div className="bg-white border border-[#e9e9ed] rounded-3xl p-8 text-center text-xs text-red-500">
+        <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-8 text-center text-xs text-red-500">
           {error}
         </div>
       ) : people.length === 0 ? (
-        <div className="bg-white border border-[#e9e9ed] rounded-3xl p-10 text-center space-y-2">
+        <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-10 text-center space-y-2">
           <span className="text-3xl">👥</span>
-          <p className="text-sm font-bold text-[#17213f]">No people found</p>
-          <p className="text-xs text-[#737b8d]">Try searching with a different name or keyword.</p>
+          <p className="text-sm font-bold text-[#17213f] dark:text-white">No people found</p>
+          <p className="text-xs text-[#737b8d] dark:text-slate-400">Try searching with a different name or keyword.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -102,7 +102,7 @@ export default function PeopleView() {
             return (
               <div
                 key={person._id}
-                className="bg-white border border-[#e9e9ed] rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-2xs hover:shadow-sm transition-shadow"
+                className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-2xs hover:shadow-sm transition-shadow"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -117,11 +117,11 @@ export default function PeopleView() {
                     <div className="min-w-0">
                       <Link
                         to={`/profile/${person.username}`}
-                        className="font-bold text-sm text-[#17213f] hover:text-[#3f5ce8] truncate block"
+                        className="font-bold text-sm text-[#17213f] dark:text-white hover:text-[#3f5ce8] truncate block"
                       >
                         {person.displayName}
                       </Link>
-                      <div className="text-[11px] text-[#737b8d]">@{person.username}</div>
+                      <div className="text-[11px] text-[#737b8d] dark:text-slate-400">@{person.username}</div>
                     </div>
                   </div>
 
@@ -130,7 +130,7 @@ export default function PeopleView() {
                       onClick={() => handleToggleFollowUser(person._id)}
                       className={`text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer ${
                         person.isFollowing
-                          ? 'bg-[#f7f7f8] hover:bg-[#fee2e2] hover:text-red-600 text-[#17213f] border border-[#e9e9ed]'
+                          ? 'bg-[#f7f7f8] dark:bg-slate-800 hover:bg-[#fee2e2] dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-300 text-[#17213f] dark:text-slate-200 border border-[#e9e9ed] dark:border-slate-700'
                           : 'bg-[#3f5ce8] hover:bg-[#324ecc] text-white shadow-[0_2px_0_#2b41ab]'
                       }`}
                     >
@@ -149,11 +149,11 @@ export default function PeopleView() {
                   )}
                 </div>
 
-                <p className="text-xs text-[#525d77] line-clamp-2 leading-relaxed">
+                <p className="text-xs text-[#525d77] dark:text-slate-300 line-clamp-2 leading-relaxed">
                   {person.headline || person.bio || 'Curious mind · Building in public'}
                 </p>
 
-                <div className="flex items-center justify-between pt-2 border-t border-[#f0f0f4] text-[11px] text-[#737b8d]">
+                <div className="flex items-center justify-between pt-2 border-t border-[#f0f0f4] dark:border-slate-800 text-[11px] text-[#737b8d] dark:text-slate-400">
                   <span>{person.followersCount || 0} followers</span>
                   <Link
                     to={`/profile/${person.username}`}

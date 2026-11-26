@@ -104,7 +104,7 @@ export default function AdminView() {
       setDeleting(true);
       const endpoint =
         deleteTarget.type === 'post'
-          ? `/posts/${deleteTarget.id}`
+          ? `/admin/posts/${deleteTarget.id}`
           : deleteTarget.type === 'discussion'
           ? `/discussions/${deleteTarget.id}`
           : `/knowledge/${deleteTarget.id}`;

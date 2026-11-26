@@ -311,7 +311,7 @@ const runTests = async () => {
 
   // Test 10: Content Deletion & Moderation with Reason Notifications
   {
-    const { deletePost } = await import('../src/controllers/postController.js');
+    const { deletePost, moderateDeletePost, updatePost } = await import('../src/controllers/postController.js');
     const { Post } = await import('../src/models/Post.js');
     const { Notification } = await import('../src/models/Notification.js');
 
@@ -349,12 +349,45 @@ const runTests = async () => {
     );
     assert.equal(unauthCode, 403, 'Non-owner and non-staff must be rejected with 403');
 
-    // 10b. Moderator deletion creates notification with reason
+    // Staff cannot use regular post edit or delete routes.
+    let staffEditCode = null;
+    const staffEditRes = {
+      status(c) { staffEditCode = c; return this; },
+      json() { return this; },
+    };
+    await updatePost(
+      {
+        params: { postId: mockPost._id },
+        user: { _id: '507f1f77bcf86cd799439088', platformRole: 'admin' },
+        body: { title: 'Edited by admin' },
+      },
+      staffEditRes,
+      () => {}
+    );
+    assert.equal(staffEditCode, 403, 'Admin must not edit another user post outside the admin panel');
+
+    let staffDeleteCode = null;
+    const staffDeleteRes = {
+      status(c) { staffDeleteCode = c; return this; },
+      json() { return this; },
+    };
+    await deletePost(
+      {
+        params: { postId: mockPost._id },
+        user: { _id: '507f1f77bcf86cd799439088', platformRole: 'admin' },
+        body: { reason: 'Must use the admin panel' },
+      },
+      staffDeleteRes,
+      () => {}
+    );
+    assert.equal(staffDeleteCode, 403, 'Admin must not delete another user post outside the admin panel');
+
+    // Moderators retain removal access through the dedicated admin-panel route.
     let modJson = null;
     const modRes = {
       json(b) { modJson = b; return this; },
     };
-    await deletePost(
+    await moderateDeletePost(
       {
         params: { postId: mockPost._id },
         user: { _id: '507f1f77bcf86cd799439088', platformRole: 'moderator', displayName: 'ModTeam' },
@@ -372,7 +405,7 @@ const runTests = async () => {
     Post.findById = originalFindById;
     Notification.create = originalNotifCreate;
 
-    console.log('✓ Test 10 Passed: Content deletion enforces owner/staff permissions and notifies author on moderation.');
+    console.log('✓ Test 10 Passed: Post edit/delete is owner-only outside the moderation route.');
   }
 
   // Test 11: Admin user content inspection
@@ -394,7 +427,44 @@ const runTests = async () => {
     console.log('✓ Test 11 Passed: Admin user inspection endpoint properly secured for staff only.');
   }
 
-  console.log('\nAll 11 automated unit/integration checks PASSED successfully!');
+  // Test 12: Marking a notification read only affects its recipient's notification
+  {
+    const { markAsRead } = await import('../src/controllers/notificationController.js');
+    const { Notification } = await import('../src/models/Notification.js');
+    const originalFindOneAndUpdate = Notification.findOneAndUpdate;
+    const recipientId = new mongoose.Types.ObjectId();
+    let updateFilter = null;
+    let updateDoc = null;
+    Notification.findOneAndUpdate = async (filter, update) => {
+      updateFilter = filter;
+      updateDoc = update;
+      return { _id: new mongoose.Types.ObjectId() };
+    };
+
+    let responseBody = null;
+    const res = {
+      json(body) {
+        responseBody = body;
+        return this;
+      },
+    };
+    try {
+      await markAsRead(
+        { params: { id: '507f1f77bcf86cd799439099' }, user: { _id: recipientId } },
+        res,
+        () => {}
+      );
+      assert.equal(String(updateFilter.recipientId), String(recipientId));
+      assert.equal(updateDoc.isRead, true);
+      assert.equal(responseBody.success, true);
+    } finally {
+      Notification.findOneAndUpdate = originalFindOneAndUpdate;
+    }
+
+    console.log('✓ Test 12 Passed: Notification read updates are scoped to the logged-in recipient.');
+  }
+
+  console.log('\nAll 12 automated unit/integration checks PASSED successfully!');
 };
 
 runTests().catch((err) => {

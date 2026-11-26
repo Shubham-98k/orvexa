@@ -17,21 +17,41 @@ export default function ActivityView() {
   const [savingPreferences, setSavingPreferences] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      apiGet('/notifications'),
-      apiGet('/notifications/preferences'),
-    ])
-      .then(([notificationsRes, preferencesRes]) => {
-        setNotifications(notificationsRes?.notifications || []);
+    let active = true;
+    const loadNotifications = async () => {
+      try {
+        const [notificationsRes, preferencesRes] = await Promise.all([
+          apiGet('/notifications'),
+          apiGet('/notifications/preferences'),
+        ]);
+        let nextNotifications = notificationsRes?.notifications || [];
+        if (notificationsRes?.unreadCount > 0) {
+          await apiPost('/notifications/read-all', {});
+          nextNotifications = nextNotifications.map((notification) => ({
+            ...notification,
+            isRead: true,
+          }));
+        }
+        if (!active) return;
+        setNotifications(nextNotifications);
         setPreferences(preferencesRes?.preferences || {
           replies: true,
           likes: true,
           follows: true,
           mentions: true,
         });
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      } catch (err) {
+        if (active) {
+          showToast?.(err.message || 'Unable to load notifications');
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadNotifications();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const updatePreference = async (key) => {
@@ -55,8 +75,8 @@ export default function ActivityView() {
       await apiPost('/notifications/read-all', {});
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       showToast?.('All notifications marked as read');
-    } catch {
-      showToast?.('Updated status');
+    } catch (err) {
+      showToast?.(err.message || 'Unable to mark notifications as read');
     }
   };
 

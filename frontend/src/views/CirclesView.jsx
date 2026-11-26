@@ -29,15 +29,15 @@ export default function CirclesView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#f0f0f2]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#f0f0f2] dark:border-slate-800">
         <div>
           <div className="text-[11px] font-extrabold uppercase tracking-[1.1px] text-[#e66c68] mb-1">
             ORVEXA COMMUNITIES
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-1.2px] text-[#17213f] leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-1.2px] text-[#17213f] dark:text-white leading-tight">
             Find your people
           </h1>
-          <p className="text-xs sm:text-[13.5px] text-[#737b8d] mt-1">
+          <p className="text-xs sm:text-[13.5px] text-[#737b8d] dark:text-slate-400 mt-1">
             Interest-based communities built around subjects you care about.
           </p>
         </div>
@@ -53,17 +53,17 @@ export default function CirclesView() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {loading ? (
-          <div className="col-span-2 py-12 text-center text-xs text-[#8b92a1]">Loading circles...</div>
+          <div className="col-span-2 py-12 text-center text-xs text-[#8b92a1] dark:text-slate-400">Loading circles...</div>
         ) : circles.length === 0 ? (
-          <div className="col-span-2 py-16 text-center text-xs text-[#8b92a1] border border-dashed border-[#e9e9ed] rounded-2xl space-y-2">
-            <p className="font-semibold text-[#17213f]">No circles created yet.</p>
+          <div className="col-span-2 py-16 text-center text-xs text-[#8b92a1] dark:text-slate-400 border border-dashed border-[#e9e9ed] dark:border-slate-700 rounded-2xl space-y-2">
+            <p className="font-semibold text-[#17213f] dark:text-white">No circles created yet.</p>
             <p>Create the first interest community on Orvexa!</p>
           </div>
         ) : (
           circles.map((circle) => (
             <div
               key={circle._id}
-              className="border border-[#e9e9ed] rounded-2xl overflow-hidden bg-white shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+              className="border border-[#e9e9ed] dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
             >
               <div
                 className={`h-24 flex items-center justify-center text-white text-3xl font-extrabold ${
@@ -81,17 +81,17 @@ export default function CirclesView() {
 
               <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
                 <div>
-                  <h3 className="text-base font-bold text-[#17213f]">{circle.name}</h3>
-                  <p className="text-xs text-[#737b8d] mt-1 leading-relaxed line-clamp-2">{circle.description}</p>
+                  <h3 className="text-base font-bold text-[#17213f] dark:text-white">{circle.name}</h3>
+                  <p className="text-xs text-[#737b8d] dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">{circle.description}</p>
                 </div>
 
-                <div className="border-t border-[#f0f0f2] pt-3 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#8b92a1]">{circle.membersCount || 1} members</span>
+                <div className="border-t border-[#f0f0f2] dark:border-slate-800 pt-3 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#8b92a1] dark:text-slate-400">{circle.membersCount || 1} members</span>
                   <button
                     onClick={() => handleToggleJoin(circle._id)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                       circle.joined
-                        ? 'bg-[#f0f1f4] text-[#737b8d] hover:bg-[#e4e6ea]'
+                        ? 'bg-[#f0f1f4] dark:bg-slate-800 text-[#737b8d] dark:text-slate-300 hover:bg-[#e4e6ea] dark:hover:bg-slate-700'
                         : 'bg-[#3f5ce8] text-white hover:bg-[#324ecc]'
                     }`}
                   >

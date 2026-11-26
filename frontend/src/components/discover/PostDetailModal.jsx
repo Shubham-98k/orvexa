@@ -57,18 +57,6 @@ export default function PostDetailModal({
     Boolean(postData?.authorId) &&
     String(user._id || user.id) === String(postData?.authorId?._id || postData?.authorId);
 
-  const isStaff =
-    Boolean(user) &&
-    (
-      user.platformRole === 'admin' ||
-      user.platformRole === 'moderator' ||
-      user.role === 'admin' ||
-      user.role === 'moderator'
-    );
-
-  // isAuthor: controls edit/delete/convert buttons — only the actual author or staff
-  const isAuthor = isOwner || isStaff;
-
   const focusReplyInput = () => {
     requestAnimationFrame(() => {
       document.getElementById('post-reply-input')?.focus();
@@ -397,7 +385,7 @@ export default function PostDetailModal({
           </div>
 
           <div className="flex items-center gap-2">
-            {isAuthor && (
+            {isOwner && (
               <button
                 type="button"
                 onClick={handleDeletePost}
@@ -450,7 +438,7 @@ export default function PostDetailModal({
             )}
           </div>
 
-          {isAuthor && (
+          {isOwner && (
             <div className="flex items-center gap-1">
               <button
                 type="button"

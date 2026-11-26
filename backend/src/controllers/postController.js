@@ -321,29 +321,47 @@ export const savePost = async (req, res, next) => {
 export const deletePost = async (req, res, next) => {
   try {
     const { postId } = req.params;
-    const { reason } = req.body || {};
     const post = await Post.findById(postId);
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
     const isOwner = req.user && String(post.authorId) === String(req.user._id);
-    const isModOrAdmin = req.user && (
-      req.user.platformRole === 'admin' ||
-      req.user.platformRole === 'moderator' ||
-      req.user.role === 'admin' ||
-      req.user.role === 'moderator'
-    );
-
-    if (!isOwner && !isModOrAdmin) {
-      return res.status(403).json({ error: 'Unauthorized to delete this post' });
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Only the author can delete this post' });
     }
 
     post.status = 'deleted';
     await post.save();
 
-    // If deleted by moderator/admin, send notification to author explaining reason
-    if (isModOrAdmin && !isOwner && post.authorId) {
+    res.json({ success: true, message: 'Post deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const moderateDeletePost = async (req, res, next) => {
+  try {
+    const isModOrAdmin =
+      req.user?.platformRole === 'admin' ||
+      req.user?.platformRole === 'moderator' ||
+      req.user?.role === 'admin' ||
+      req.user?.role === 'moderator';
+    if (!isModOrAdmin) {
+      return res.status(403).json({ error: 'Moderation privileges required' });
+    }
+
+    const { postId } = req.params;
+    const { reason } = req.body || {};
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    post.status = 'deleted';
+    await post.save();
+
+    if (post.authorId) {
       try {
         await Notification.create({
           recipientId: post.authorId,
@@ -380,15 +398,8 @@ export const updatePost = async (req, res, next) => {
     }
 
     const isOwner = req.user && String(post.authorId) === String(req.user._id);
-    const isModOrAdmin = req.user && (
-      req.user.platformRole === 'admin' ||
-      req.user.platformRole === 'moderator' ||
-      req.user.role === 'admin' ||
-      req.user.role === 'moderator'
-    );
-
-    if (!isOwner && !isModOrAdmin) {
-      return res.status(403).json({ error: 'Unauthorized to edit this post' });
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Only the author can edit this post' });
     }
 
     if (title !== undefined) post.title = String(title).trim();

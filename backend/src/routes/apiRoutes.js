@@ -144,6 +144,7 @@ router.get('/search', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateL
 // ==========================================
 // 13. ADMIN & MODERATION
 // ==========================================
+router.delete('/admin/posts/:postId', requireAuth, postCtrl.moderateDeletePost);
 router.get('/admin/overview', requireAuth, adminCtrl.getAdminOverview);
 router.get('/admin/users', requireAuth, adminCtrl.getAdminUsers);
 router.get('/admin/users/:userId/content', requireAuth, adminCtrl.getAdminUserContent);

@@ -97,6 +97,29 @@ export default function DiscoverView() {
   const [activePost, setActivePost] = useState(null);
   const [focusPostReply, setFocusPostReply] = useState(false);
   const [trendingDiscussions, setTrendingDiscussions] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!user) {
+      setUnreadNotificationCount(0);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    apiGet('/notifications')
+      .then((res) => {
+        if (isMounted) setUnreadNotificationCount(Number(res?.unreadCount) || 0);
+      })
+      .catch((err) => {
+        if (isMounted) console.warn('Failed to load unread notification count:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // Fetch real trending discussions
   useEffect(() => {
@@ -239,7 +262,9 @@ export default function DiscoverView() {
             title="Notifications"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#e66c68]" />
+            {unreadNotificationCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#e66c68]" />
+            )}
           </Link>
 
           <Link to="/profile" className="cursor-pointer">
