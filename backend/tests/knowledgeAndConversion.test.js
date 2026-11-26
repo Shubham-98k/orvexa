@@ -4,13 +4,27 @@ import { Post } from '../src/models/Post.js';
 import { PostReply } from '../src/models/PostReply.js';
 import { Discussion } from '../src/models/Discussion.js';
 import { DiscussionContribution } from '../src/models/DiscussionContribution.js';
-import { KnowledgeArticle } from '../src/models/KnowledgeArticle.js';
+import { KnowledgeArticle, parseKnowledgeContentToBlocks } from '../src/models/KnowledgeArticle.js';
 import { KnowledgeDraft } from '../src/models/KnowledgeDraft.js';
 import { KnowledgeVersion } from '../src/models/KnowledgeVersion.js';
 import { SourceSnapshot } from '../src/models/SourceSnapshot.js';
 import { SourceAnalysis } from '../src/models/SourceAnalysis.js';
+import { Circle } from '../src/models/Circle.js';
+import { CircleMembership } from '../src/models/CircleMembership.js';
+import { User } from '../src/models/User.js';
+import { AuditLog, Notification } from '../src/models/Notification.js';
 import { runZeroCostAnalysis } from '../src/services/analysisPipelineService.js';
 import { checkAIAvailability } from '../src/services/aiProviderService.js';
+import {
+  deleteKnowledgeArticle,
+  restoreArticleVersion,
+  updateKnowledgeArticle,
+} from '../src/controllers/knowledgeController.js';
+import { deleteDiscussion, updateDiscussion } from '../src/controllers/discussionController.js';
+import {
+  moderateDeleteDiscussion,
+  moderateDeleteKnowledgeArticle,
+} from '../src/controllers/adminController.js';
 
 const runKnowledgeAndConversionTests = async () => {
   console.log('--- Starting Knowledge System & Post-to-Discussion Verification Suite ---');
@@ -334,6 +348,22 @@ const runKnowledgeAndConversionTests = async () => {
 
   // Test 9: KnowledgeArticle block schema, reading time & virtual compatibility
   {
+    assert.ok(KnowledgeArticle.schema.path('origin.circleId'), 'Knowledge article origin must retain its source Circle');
+    assert.ok(KnowledgeDraft.schema.path('origin.circleId'), 'Knowledge draft origin must retain its source Circle');
+    const parsedContent = parseKnowledgeContentToBlocks(
+      '## First section\nParagraph text for the first section.\n\n### Nested section\nAnother paragraph.'
+    );
+    assert.deepEqual(
+      parsedContent.map(({ type, content }) => [type, content]),
+      [
+        ['heading2', 'First section'],
+        ['paragraph', 'Paragraph text for the first section.'],
+        ['heading3', 'Nested section'],
+        ['paragraph', 'Another paragraph.'],
+      ],
+      'Markdown headings and the following paragraph must be stored as separate blocks'
+    );
+
     const article = new KnowledgeArticle({
       authorId: new mongoose.Types.ObjectId(),
       title: 'A Deep Dive into Async Cadence',
@@ -413,7 +443,250 @@ const runKnowledgeAndConversionTests = async () => {
     console.log('✓ Test 11 Passed: AI spending is strictly disabled by default with honest user notice.');
   }
 
-  console.log('\nAll 11 Knowledge System & Post Conversion tests PASSED successfully!\n');
+  // Test 12: Staff cannot edit or delete articles through author endpoints
+  {
+    const originalMethods = {
+      articleFindOne: KnowledgeArticle.findOne,
+      articleFindById: KnowledgeArticle.findById,
+      versionFindOne: KnowledgeVersion.findOne,
+      circleFind: Circle.find,
+      membershipFind: CircleMembership.find,
+      userFindById: User.findById,
+    };
+    const authorId = new mongoose.Types.ObjectId();
+    const article = {
+      _id: new mongoose.Types.ObjectId(),
+      authorId,
+      title: 'Original title',
+      summary: 'Original summary',
+      status: 'published',
+      save: async function () { return this; },
+    };
+    const makeQuery = (result) => ({
+      select() { return this; },
+      lean: async () => result,
+    });
+    const createResponse = () => {
+      const response = { statusCode: 200, body: null };
+      response.status = function (statusCode) {
+        this.statusCode = statusCode;
+        return this;
+      };
+      response.json = function (body) {
+        this.body = body;
+        return this;
+      };
+      return response;
+    };
+
+    try {
+      KnowledgeArticle.findOne = async () => article;
+      KnowledgeArticle.findById = async () => article;
+      KnowledgeVersion.findOne = async () => ({ _id: new mongoose.Types.ObjectId() });
+      Circle.find = () => makeQuery([]);
+      CircleMembership.find = () => makeQuery([]);
+      User.findById = () => makeQuery({ following: [] });
+
+      const admin = {
+        _id: new mongoose.Types.ObjectId(),
+        platformRole: 'admin',
+        role: 'admin',
+      };
+      const updateResponse = createResponse();
+      await updateKnowledgeArticle(
+        { params: { articleId: article._id }, body: { title: 'Changed by admin' }, user: admin },
+        updateResponse,
+        (error) => { throw error; }
+      );
+      assert.equal(updateResponse.statusCode, 403);
+      assert.equal(article.title, 'Original title');
+
+      const restoreResponse = createResponse();
+      await restoreArticleVersion(
+        {
+          params: {
+            articleId: article._id,
+            versionId: new mongoose.Types.ObjectId(),
+          },
+          user: admin,
+        },
+        restoreResponse,
+        (error) => { throw error; }
+      );
+      assert.equal(restoreResponse.statusCode, 403);
+      assert.equal(article.title, 'Original title');
+
+      const deleteResponse = createResponse();
+      await deleteKnowledgeArticle(
+        { params: { articleId: article._id }, body: { reason: 'moderation' }, user: admin },
+        deleteResponse,
+        (error) => { throw error; }
+      );
+      assert.equal(deleteResponse.statusCode, 403);
+      assert.equal(article.status, 'published');
+    } finally {
+      KnowledgeArticle.findOne = originalMethods.articleFindOne;
+      KnowledgeArticle.findById = originalMethods.articleFindById;
+      KnowledgeVersion.findOne = originalMethods.versionFindOne;
+      Circle.find = originalMethods.circleFind;
+      CircleMembership.find = originalMethods.membershipFind;
+      User.findById = originalMethods.userFindById;
+    }
+
+    console.log('✓ Test 12 Passed: Staff cannot edit or delete articles through author endpoints.');
+  }
+
+  // Test 13: Admin-panel moderation can remove an article with notice and audit trail
+  {
+    const originalMethods = {
+      articleFindById: KnowledgeArticle.findById,
+      notificationCreate: Notification.create,
+      auditLogCreate: AuditLog.create,
+    };
+    const article = {
+      _id: new mongoose.Types.ObjectId(),
+      authorId: new mongoose.Types.ObjectId(),
+      status: 'published',
+      save: async function () { return this; },
+    };
+    let notification;
+    let auditEntry;
+    KnowledgeArticle.findById = async () => article;
+    Notification.create = async (data) => { notification = data; };
+    AuditLog.create = async (data) => { auditEntry = data; };
+
+    const response = {
+      statusCode: 200,
+      body: null,
+      status(statusCode) { this.statusCode = statusCode; return this; },
+      json(body) { this.body = body; return this; },
+    };
+
+    try {
+      await moderateDeleteKnowledgeArticle(
+        {
+          params: { articleId: article._id },
+          body: { reason: 'Removed after review' },
+          user: {
+            _id: new mongoose.Types.ObjectId(),
+            displayName: 'Moderator',
+            platformRole: 'admin',
+          },
+        },
+        response,
+        (error) => { throw error; }
+      );
+      assert.equal(response.statusCode, 200);
+      assert.equal(article.status, 'archived');
+      assert.equal(notification.reason, 'Removed after review');
+      assert.equal(auditEntry.targetType, 'knowledge');
+      assert.equal(auditEntry.targetId, article._id);
+    } finally {
+      KnowledgeArticle.findById = originalMethods.articleFindById;
+      Notification.create = originalMethods.notificationCreate;
+      AuditLog.create = originalMethods.auditLogCreate;
+    }
+
+    console.log('✓ Test 13 Passed: Knowledge moderation is separated and logged.');
+  }
+
+  // Test 14: Discussion author actions and moderation use separate endpoints
+  {
+    const originalMethods = {
+      discussionFindOne: Discussion.findOne,
+      discussionFindById: Discussion.findById,
+      circleFind: Circle.find,
+      membershipFind: CircleMembership.find,
+      userFindById: User.findById,
+      notificationCreate: Notification.create,
+      auditLogCreate: AuditLog.create,
+    };
+    const discussion = {
+      _id: new mongoose.Types.ObjectId(),
+      authorId: new mongoose.Types.ObjectId(),
+      title: 'Original discussion',
+      status: 'active',
+      save: async function () { return this; },
+    };
+    const makeQuery = (result) => ({
+      select() { return this; },
+      lean: async () => result,
+    });
+    const createResponse = () => {
+      const response = { statusCode: 200, body: null };
+      response.status = function (statusCode) {
+        this.statusCode = statusCode;
+        return this;
+      };
+      response.json = function (body) {
+        this.body = body;
+        return this;
+      };
+      return response;
+    };
+    let notification;
+    let auditEntry;
+
+    try {
+      Discussion.findOne = async () => discussion;
+      Discussion.findById = async () => discussion;
+      Circle.find = () => makeQuery([]);
+      CircleMembership.find = () => makeQuery([]);
+      User.findById = () => makeQuery({ following: [] });
+      Notification.create = async (data) => { notification = data; };
+      AuditLog.create = async (data) => { auditEntry = data; };
+
+      const admin = {
+        _id: new mongoose.Types.ObjectId(),
+        displayName: 'Moderator',
+        platformRole: 'admin',
+      };
+      const updateResponse = createResponse();
+      await updateDiscussion(
+        { params: { discussionId: discussion._id }, body: { title: 'Changed by admin' }, user: admin },
+        updateResponse,
+        (error) => { throw error; }
+      );
+      assert.equal(updateResponse.statusCode, 403);
+      assert.equal(discussion.title, 'Original discussion');
+
+      const deleteResponse = createResponse();
+      await deleteDiscussion(
+        { params: { discussionId: discussion._id }, body: { reason: 'moderation' }, user: admin },
+        deleteResponse,
+        (error) => { throw error; }
+      );
+      assert.equal(deleteResponse.statusCode, 403);
+      assert.equal(discussion.status, 'active');
+
+      const moderationResponse = createResponse();
+      await moderateDeleteDiscussion(
+        {
+          params: { discussionId: discussion._id },
+          body: { reason: 'Removed after review' },
+          user: admin,
+        },
+        moderationResponse,
+        (error) => { throw error; }
+      );
+      assert.equal(moderationResponse.statusCode, 200);
+      assert.equal(discussion.status, 'removed');
+      assert.equal(notification.targetType, 'discussion');
+      assert.equal(auditEntry.targetType, 'discussion');
+    } finally {
+      Discussion.findOne = originalMethods.discussionFindOne;
+      Discussion.findById = originalMethods.discussionFindById;
+      Circle.find = originalMethods.circleFind;
+      CircleMembership.find = originalMethods.membershipFind;
+      User.findById = originalMethods.userFindById;
+      Notification.create = originalMethods.notificationCreate;
+      AuditLog.create = originalMethods.auditLogCreate;
+    }
+
+    console.log('✓ Test 14 Passed: Discussion author actions are separate from moderation.');
+  }
+
+  console.log('\nAll 14 Knowledge System & Post Conversion tests PASSED successfully!\n');
 };
 
 runKnowledgeAndConversionTests().catch((err) => {

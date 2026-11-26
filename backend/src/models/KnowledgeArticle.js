@@ -14,6 +14,42 @@ const blockSchema = new mongoose.Schema(
   { _id: false }
 );
 
+export const parseKnowledgeContentToBlocks = (content) => {
+  const blocks = [];
+  let paragraphLines = [];
+  const flushParagraph = () => {
+    const paragraph = paragraphLines.join('\n').trim();
+    if (paragraph) {
+      blocks.push({
+        id: `block-${blocks.length + 1}`,
+        type: 'paragraph',
+        content: paragraph,
+        data: {},
+      });
+    }
+    paragraphLines = [];
+  };
+
+  for (const line of content.split(/\r?\n/)) {
+    const heading = line.match(/^\s*(#{1,3})\s+(.+?)\s*$/);
+    if (heading) {
+      flushParagraph();
+      blocks.push({
+        id: `block-${blocks.length + 1}`,
+        type: `heading${heading[1].length}`,
+        content: heading[2],
+        data: {},
+      });
+    } else if (line.trim()) {
+      paragraphLines.push(line);
+    } else {
+      flushParagraph();
+    }
+  }
+  flushParagraph();
+  return blocks;
+};
+
 const knowledgeSchema = new mongoose.Schema(
   {
     authorId: {
@@ -25,6 +61,18 @@ const knowledgeSchema = new mongoose.Schema(
     authorName: String,
     authorInitials: String,
     authorColor: String,
+    circleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Circle',
+      default: null,
+      index: true,
+    },
+    visibility: {
+      type: String,
+      enum: ['public', 'circle'],
+      default: 'public',
+      index: true,
+    },
     title: {
       type: String,
       required: true,
@@ -91,6 +139,11 @@ const knowledgeSchema = new mongoose.Schema(
       discussionId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Discussion',
+        default: null,
+      },
+      circleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Circle',
         default: null,
       },
     },
@@ -201,13 +254,7 @@ knowledgeSchema.pre('save', function () {
 
   // Sync content string to blocks if body is empty
   if ((!this.body || this.body.length === 0) && this.content && this.content.trim()) {
-    const paragraphs = this.content.split(/\n\s*\n/).filter(Boolean);
-    this.body = paragraphs.map((p, idx) => ({
-      id: `block-${idx + 1}`,
-      type: p.startsWith('# ') ? 'heading1' : p.startsWith('## ') ? 'heading2' : p.startsWith('### ') ? 'heading3' : 'paragraph',
-      content: p.replace(/^#+\s*/, ''),
-      data: {},
-    }));
+    this.body = parseKnowledgeContentToBlocks(this.content);
   }
 
   // Compute reading time

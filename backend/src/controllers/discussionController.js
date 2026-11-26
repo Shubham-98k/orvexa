@@ -3,6 +3,13 @@ import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { Notification } from '../models/Notification.js';
 import { User } from '../models/User.js';
 import { Post } from '../models/Post.js';
+import { authorizeCircleContent, withCircleContentAccess } from '../services/circleAccessService.js';
+
+const findAccessibleDiscussion = async (discussionId, userId) =>
+  Discussion.findOne(await withCircleContentAccess({
+    _id: discussionId,
+    status: { $nin: ['removed', 'closed'] },
+  }, userId));
 
 /**
  * Reconciles discussion counts accurately against persisted records:
@@ -71,7 +78,7 @@ export const getDiscussions = async (req, res, next) => {
 
     const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.min(50, parseInt(limit, 10));
 
-    const rawDiscussions = await Discussion.find(query)
+    const rawDiscussions = await Discussion.find(await withCircleContentAccess(query, req.user?._id))
       .sort(sortObj)
       .skip(skip)
       .limit(Math.min(50, parseInt(limit, 10)))
@@ -103,6 +110,8 @@ export const getDiscussions = async (req, res, next) => {
 export const getDiscussionById = async (req, res, next) => {
   try {
     const { discussionId } = req.params;
+    const accessibleDiscussion = await findAccessibleDiscussion(discussionId, req.user?._id);
+    if (!accessibleDiscussion) return res.status(404).json({ error: 'Discussion not found' });
     const reconciled = await reconcileDiscussionCounts(discussionId);
     if (!reconciled) return res.status(404).json({ error: 'Discussion not found' });
 
@@ -141,10 +150,17 @@ export const getDiscussionById = async (req, res, next) => {
 
 export const createDiscussion = async (req, res, next) => {
   try {
-    const { title, body, category, tags, imageUrl } = req.body;
+    const { title, body, category, tags, imageUrl, circleId, visibility } = req.body;
     if (!title || !body) {
       return res.status(400).json({ error: 'Title and context are required' });
     }
+    const circleAccess = await authorizeCircleContent({
+      circleId,
+      userId: req.user._id,
+      contentType: 'discussion',
+      visibility,
+    });
+    if (circleAccess.error) return res.status(circleAccess.status).json({ error: circleAccess.error });
 
     const discussion = await Discussion.create({
       authorId: req.user._id,
@@ -156,6 +172,8 @@ export const createDiscussion = async (req, res, next) => {
       imageUrl: imageUrl || '',
       category: category || 'General',
       tags: tags || ['#ideas'],
+      circleId: circleAccess.circle?._id || null,
+      visibility: circleAccess.visibility,
       votes: 0,
       voters: [],
       commentsCount: 0,
@@ -181,7 +199,7 @@ export const upvoteDiscussion = async (req, res, next) => {
     const { discussionId } = req.params;
     const userId = req.user._id;
 
-    const discussion = await Discussion.findById(discussionId);
+    const discussion = await findAccessibleDiscussion(discussionId, userId);
     if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
 
     if (!Array.isArray(discussion.voters)) discussion.voters = [];
@@ -222,7 +240,7 @@ export const addContribution = async (req, res, next) => {
       return res.status(400).json({ error: 'Contribution text is required' });
     }
 
-    const discussion = await Discussion.findById(discussionId);
+    const discussion = await findAccessibleDiscussion(discussionId, req.user._id);
     if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
 
     let depth = 0;
@@ -304,6 +322,8 @@ export const updateContribution = async (req, res, next) => {
       return res.status(400).json({ error: 'Contribution text is required' });
     }
 
+    const discussion = await findAccessibleDiscussion(discussionId, req.user._id);
+    if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
     const contribution = await DiscussionContribution.findOne({
       _id: contributionId,
       discussionId,
@@ -326,6 +346,8 @@ export const updateContribution = async (req, res, next) => {
 export const deleteContribution = async (req, res, next) => {
   try {
     const { discussionId, contributionId } = req.params;
+    const discussion = await findAccessibleDiscussion(discussionId, req.user._id);
+    if (!discussion) return res.status(404).json({ error: 'Discussion not found' });
     const contribution = await DiscussionContribution.findOne({
       _id: contributionId,
       discussionId,
@@ -353,46 +375,18 @@ export const deleteContribution = async (req, res, next) => {
 export const deleteDiscussion = async (req, res, next) => {
   try {
     const { discussionId } = req.params;
-    const { reason } = req.body || {};
     const discussion = await Discussion.findById(discussionId);
     if (!discussion) {
       return res.status(404).json({ error: 'Discussion not found' });
     }
 
     const isOwner = req.user && String(discussion.authorId) === String(req.user._id);
-    const isModOrAdmin = req.user && (
-      req.user.platformRole === 'admin' ||
-      req.user.platformRole === 'moderator' ||
-      req.user.role === 'admin' ||
-      req.user.role === 'moderator'
-    );
-
-    if (!isOwner && !isModOrAdmin) {
+    if (!isOwner) {
       return res.status(403).json({ error: 'Unauthorized to delete this discussion' });
     }
 
     discussion.status = 'removed';
     await discussion.save();
-
-    if (isModOrAdmin && !isOwner && discussion.authorId) {
-      try {
-        await Notification.create({
-          recipientId: discussion.authorId,
-          actorId: req.user._id,
-          actorName: req.user.displayName || req.user.username || 'Moderation Team',
-          actorInitials: req.user.initials || 'MOD',
-          type: 'content_deleted',
-          title: 'Discussion closed by moderation',
-          message: reason || 'Your discussion was removed by moderation for violating community standards.',
-          reason: reason || 'Violating community guidelines',
-          targetType: 'discussion',
-          targetId: discussion._id,
-          timeText: 'Just now',
-        });
-      } catch (notifErr) {
-        console.error('Failed to create moderation notification:', notifErr);
-      }
-    }
 
     res.json({ success: true, message: 'Discussion deleted successfully' });
   } catch (err) {
@@ -405,20 +399,13 @@ export const updateDiscussion = async (req, res, next) => {
     const { discussionId } = req.params;
     const { title, body, imageUrl, category, tags } = req.body || {};
 
-    const discussion = await Discussion.findById(discussionId);
+    const discussion = await findAccessibleDiscussion(discussionId, req.user._id);
     if (!discussion) {
       return res.status(404).json({ error: 'Discussion not found' });
     }
 
     const isOwner = req.user && String(discussion.authorId) === String(req.user._id);
-    const isModOrAdmin = req.user && (
-      req.user.platformRole === 'admin' ||
-      req.user.platformRole === 'moderator' ||
-      req.user.role === 'admin' ||
-      req.user.role === 'moderator'
-    );
-
-    if (!isOwner && !isModOrAdmin) {
+    if (!isOwner) {
       return res.status(403).json({ error: 'Unauthorized to edit this discussion' });
     }
 

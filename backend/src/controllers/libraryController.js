@@ -2,6 +2,7 @@ import { Save } from '../models/Notification.js';
 import { Post } from '../models/Post.js';
 import { Discussion } from '../models/Discussion.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
+import { getCircleContentFilter } from '../services/circleAccessService.js';
 
 export const getLibrary = async (req, res, next) => {
   try {
@@ -13,11 +14,13 @@ export const getLibrary = async (req, res, next) => {
     const postIds = savedItems.filter((item) => item.itemType === 'post').map((item) => item.itemId);
     const discussionIds = savedItems.filter((item) => item.itemType === 'discussion').map((item) => item.itemId);
     const knowledgeIds = savedItems.filter((item) => item.itemType === 'knowledge').map((item) => item.itemId);
+    const circleAccess = await getCircleContentFilter(req.user._id);
+    const accessibleQuery = (query) => ({ $and: [query, circleAccess] });
 
     const [posts, discussions, knowledge] = await Promise.all([
-      postIds.length ? Post.find({ _id: { $in: postIds }, status: 'published' }).lean() : [],
-      discussionIds.length ? Discussion.find({ _id: { $in: discussionIds }, status: { $ne: 'removed' } }).lean() : [],
-      knowledgeIds.length ? KnowledgeArticle.find({ _id: { $in: knowledgeIds }, status: 'published' }).lean() : [],
+      postIds.length ? Post.find(accessibleQuery({ _id: { $in: postIds }, status: 'published' })).lean() : [],
+      discussionIds.length ? Discussion.find(accessibleQuery({ _id: { $in: discussionIds }, status: { $nin: ['removed', 'closed'] } })).lean() : [],
+      knowledgeIds.length ? KnowledgeArticle.find(accessibleQuery({ _id: { $in: knowledgeIds }, status: 'published' })).lean() : [],
     ]);
 
     const postsById = new Map(posts.map((post) => [post._id.toString(), post]));

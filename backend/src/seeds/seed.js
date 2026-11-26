@@ -6,13 +6,15 @@ import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 import { Circle } from '../models/Circle.js';
+import { circleSeedProfiles } from './circleSeedData.js';
+import { getSeedPassword } from '../config/demoAccounts.js';
 
 export const seedDatabase = async () => {
   try {
     console.log('[Seed] Checking and enriching Orvexa database with rich media content...');
 
     const salt = await bcrypt.genSalt(10);
-    const defaultPasswordHash = await bcrypt.hash('orvexa123', salt);
+    const defaultPasswordHash = await bcrypt.hash(getSeedPassword(), salt);
 
     // 1. Initial User Roster with realistic photo avatars
     const userProfiles = [
@@ -132,55 +134,26 @@ export const seedDatabase = async () => {
     const [shubham, jamie, alicia, devon, sarah, chloe, rahul] = users;
 
     // 2. Circles with Cover Imagery
-    const circleDefs = [
-      {
-        name: 'Tech Enthusiasts',
-        slug: 'tech-enthusiasts',
-        description: 'Emerging technologies, developer ergonomics, and systems thinking.',
-        icon: '⚡',
-        imageUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=300&q=80',
-        category: 'Technology',
-        membersCount: 3200,
-        ownerId: sarah._id,
-      },
-      {
-        name: 'Design Lovers',
-        slug: 'design-lovers',
-        description: 'Thoughtful typography, interfaces, and physical objects.',
-        icon: '✧',
-        imageUrl: 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=300&q=80',
-        category: 'Design & UX',
-        membersCount: 2840,
-        ownerId: alicia._id,
-      },
-      {
-        name: 'AI & Future',
-        slug: 'ai-and-future',
-        description: 'Autonomous agents, cognitive workflows, and ethical interfaces.',
-        icon: '🤖',
-        imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&q=80',
-        category: 'Technology',
-        membersCount: 4120,
-        ownerId: jamie._id,
-      },
-      {
-        name: 'Future of Work',
-        slug: 'future-of-work',
-        description: 'Distributed teams, async rhythms, and healthy company culture.',
-        icon: '⌘',
-        imageUrl: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=300&q=80',
-        category: 'Work & Culture',
-        membersCount: 1950,
-        ownerId: rahul._id,
-      },
-    ];
-
-    for (const cDef of circleDefs) {
-      const exists = await Circle.findOne({ slug: cDef.slug });
+    for (const profile of circleSeedProfiles) {
+      const exists = await Circle.findOne({ slug: profile.slug });
       if (!exists) {
+        const owner = users.find((item) => item.username === profile.ownerUsername) || shubham;
+        const members = [...new Map([owner, shubham].map((member) => [member._id.toString(), member._id])).values()];
         await Circle.create({
-          ...cDef,
-          members: [cDef.ownerId, shubham._id],
+          name: profile.name,
+          slug: profile.slug,
+          description: profile.description,
+          ownerId: owner._id,
+          icon: profile.icon,
+          category: profile.category,
+          tags: profile.tags,
+          avatar: profile.avatar,
+          coverImage: profile.coverImage,
+          rules: profile.rules,
+          welcomeMessage: profile.welcomeMessage,
+          communityGuidelines: profile.communityGuidelines,
+          members,
+          membersCount: members.length,
         });
       }
     }

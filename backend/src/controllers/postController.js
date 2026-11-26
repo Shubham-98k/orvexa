@@ -5,6 +5,15 @@ import { PostReply } from '../models/PostReply.js';
 import { Notification } from '../models/Notification.js';
 import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
+import { authorizeCircleContent, withCircleContentAccess } from '../services/circleAccessService.js';
+
+const findAccessiblePost = async (postId, userId) => {
+  const post = await Post.findById(postId);
+  if (!post) return null;
+  if (!post.circleId && !['followers', 'circle'].includes(post.visibility)) return post;
+  const accessible = await Post.exists(await withCircleContentAccess({ _id: post._id }, userId));
+  return accessible ? post : null;
+};
 
 export const getPosts = async (req, res, next) => {
   try {
@@ -43,7 +52,7 @@ export const getPosts = async (req, res, next) => {
       sort = { createdAt: -1 };
     }
 
-    const posts = await Post.find(query)
+    const posts = await Post.find(await withCircleContentAccess(query, req.user?._id))
       .sort(sort)
       .skip(skip)
       .limit(Math.min(50, parseInt(limit, 10)))
@@ -74,10 +83,10 @@ export const getPosts = async (req, res, next) => {
 
 export const getPostById = async (req, res, next) => {
   try {
-    const post = await Post.findOne({
+    const post = await Post.findOne(await withCircleContentAccess({
       _id: req.params.postId,
       status: 'published',
-    }).lean();
+    }, req.user?._id)).lean();
 
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
@@ -127,10 +136,17 @@ export const getPostById = async (req, res, next) => {
 
 export const createPost = async (req, res, next) => {
   try {
-    const { body, title, tags, imageUrl, circleName } = req.body;
+    const { body, title, tags, imageUrl, circleId, visibility } = req.body;
     if (!body || !body.trim()) {
       return res.status(400).json({ error: 'Post content is required' });
     }
+    const circleAccess = await authorizeCircleContent({
+      circleId,
+      userId: req.user._id,
+      contentType: 'post',
+      visibility,
+    });
+    if (circleAccess.error) return res.status(circleAccess.status).json({ error: circleAccess.error });
 
     const post = await Post.create({
       authorId: req.user._id,
@@ -141,7 +157,9 @@ export const createPost = async (req, res, next) => {
       body: body.trim(),
       tags: tags || ['#OrvexaCommunity'],
       imageUrl: imageUrl || '',
-      circleName: circleName || null,
+      circleId: circleAccess.circle?._id || null,
+      circleName: circleAccess.circle?.name || null,
+      visibility: circleAccess.visibility,
       likeCount: 0,
       likes: [],
       likedBy: [],
@@ -160,7 +178,7 @@ export const toggleLikePost = async (req, res, next) => {
     const { postId } = req.params;
     const userId = req.user._id;
 
-    const post = await Post.findById(postId);
+    const post = await findAccessiblePost(postId, req.user._id);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
     if (!post.likes) post.likes = [];
@@ -191,7 +209,7 @@ export const toggleLikePost = async (req, res, next) => {
 
 export const getPostReplies = async (req, res, next) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const post = await findAccessiblePost(req.params.postId, req.user._id);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
     const replies = await PostReply.find({ postId: post._id }).sort({ createdAt: 1 }).lean();
@@ -203,7 +221,7 @@ export const getPostReplies = async (req, res, next) => {
 
 export const addPostReply = async (req, res, next) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const post = await findAccessiblePost(req.params.postId, req.user._id);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
     if (post.convertedToDiscussionId) {
@@ -284,7 +302,7 @@ export const savePost = async (req, res, next) => {
   try {
     const { postId } = req.params;
     const userId = req.user._id;
-    const post = await Post.findById(postId);
+    const post = await findAccessiblePost(postId, userId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
     const existing = await Save.findOne({
@@ -321,7 +339,7 @@ export const savePost = async (req, res, next) => {
 export const deletePost = async (req, res, next) => {
   try {
     const { postId } = req.params;
-    const post = await Post.findById(postId);
+    const post = await findAccessiblePost(postId, req.user._id);
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
@@ -392,7 +410,7 @@ export const updatePost = async (req, res, next) => {
     const { postId } = req.params;
     const { title, body, imageUrl, tags } = req.body || {};
 
-    const post = await Post.findById(postId);
+    const post = await findAccessiblePost(postId, req.user._id);
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
@@ -419,7 +437,7 @@ export const convertPostToDiscussion = async (req, res, next) => {
     const { postId } = req.params;
     const { title: customTitle, category: customCategory } = req.body || {};
 
-    const post = await Post.findById(postId);
+    const post = await findAccessiblePost(postId, req.user._id);
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
@@ -466,6 +484,7 @@ export const convertPostToDiscussion = async (req, res, next) => {
       category: customCategory || (post.circleName ? 'Community' : 'General'),
       tags: Array.isArray(post.tags) ? post.tags : [],
       circleId: post.circleId || null,
+      visibility: post.visibility === 'circle' ? 'circle' : 'public',
       status: 'open',
       votes: 0,
       voters: [],

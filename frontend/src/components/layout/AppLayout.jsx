@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
@@ -14,6 +14,8 @@ export default function AppLayout() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createDefaultType, setCreateDefaultType] = useState('Post');
+  const [createCircleId, setCreateCircleId] = useState(null);
+  const [createModalNonce, setCreateModalNonce] = useState(0);
   const [toastMessage, setToastMessage] = useState('');
   const [guestGateOpen, setGuestGateOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
@@ -41,18 +43,20 @@ export default function AppLayout() {
     });
   }, [user]);
 
-  const showToast = (msg) => {
+  const showToast = useCallback((msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 2500);
-  };
+  }, []);
 
-  const handleOpenCreate = (type = 'Post') => {
+  const handleOpenCreate = (type = 'Post', circleId = null) => {
     if (!user) {
       // Mutations strictly require authentication
       navigate('/login', { state: { from: location, message: 'Please log in to create content.' } });
       return;
     }
     setCreateDefaultType(type);
+    setCreateCircleId(circleId);
+    setCreateModalNonce((previous) => previous + 1);
     setCreateModalOpen(true);
   };
 
@@ -83,8 +87,10 @@ export default function AppLayout() {
 
       {/* Universal Create Modal */}
       <CreateModal
+        key={createModalNonce}
         isOpen={createModalOpen}
         defaultType={createDefaultType}
+        defaultCircleId={createCircleId}
         onClose={() => setCreateModalOpen(false)}
         onItemCreated={(item, type) => {
           showToast(`${type} published successfully!`);

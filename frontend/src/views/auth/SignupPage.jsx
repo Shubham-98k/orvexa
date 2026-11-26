@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
@@ -42,7 +43,11 @@ export default function SignupPage() {
         email: email.trim(),
         password,
       });
-      navigate('/app', { replace: true });
+      const from = location.state?.from;
+      navigate(
+        from ? `${from.pathname || '/app'}${from.search || ''}${from.hash || ''}` : '/app',
+        { replace: true }
+      );
     } catch (err) {
       setError(err.message || 'Registration failed. Please check your details.');
     } finally {
@@ -157,7 +162,7 @@ export default function SignupPage() {
         <div className="mt-6 pt-5 border-t border-[#f0f0f2] text-center">
           <p className="text-xs text-[#737b8d]">
             Already have an account?{' '}
-            <Link to="/login" className="font-bold text-[#3f5ce8] hover:underline">
+            <Link to="/login" state={{ from: location.state?.from }} className="font-bold text-[#3f5ce8] hover:underline">
               Log in
             </Link>
           </p>

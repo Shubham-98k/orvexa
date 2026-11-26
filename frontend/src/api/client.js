@@ -1,5 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
+export const getSocketUrl = () => new URL(API_BASE, window.location.origin).origin;
+
 export const getAuthToken = () => {
   return localStorage.getItem('orvexa_token') || null;
 };

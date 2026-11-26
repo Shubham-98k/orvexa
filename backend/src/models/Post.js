@@ -16,6 +16,7 @@ const postSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Circle',
       default: null,
+      index: true,
     },
     title: {
       type: String,
@@ -80,5 +81,7 @@ const postSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+postSchema.index({ circleId: 1, visibility: 1, status: 1 });
 
 export const Post = mongoose.model('Post', postSchema);

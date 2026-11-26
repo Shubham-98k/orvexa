@@ -129,10 +129,10 @@ export default function ProfileView() {
 
   if (error || !profileData) {
     return (
-      <div className="bg-white border border-[#e9e9ed] rounded-3xl p-10 text-center space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-3xl p-10 text-center space-y-3">
         <span className="text-4xl">🔍</span>
-        <h2 className="text-lg font-bold text-[#17213f]">{error || 'User not found'}</h2>
-        <p className="text-xs text-[#737b8d]">The profile you are looking for does not exist or is private.</p>
+        <h2 className="text-lg font-bold text-[#17213f] dark:text-white">{error || 'User not found'}</h2>
+        <p className="text-xs text-[#737b8d] dark:text-slate-400">The profile you are looking for does not exist or is private.</p>
       </div>
     );
   }

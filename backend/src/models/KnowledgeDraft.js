@@ -33,6 +33,17 @@ const knowledgeDraftSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    circleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Circle',
+      default: null,
+      index: true,
+    },
+    visibility: {
+      type: String,
+      enum: ['public', 'circle'],
+      default: 'public',
+    },
     title: {
       type: String,
       default: 'Untitled Draft',
@@ -83,6 +94,11 @@ const knowledgeDraftSchema = new mongoose.Schema(
       discussionId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Discussion',
+        default: null,
+      },
+      circleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Circle',
         default: null,
       },
     },

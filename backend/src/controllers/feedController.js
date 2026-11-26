@@ -2,6 +2,7 @@ import { Post } from '../models/Post.js';
 import { Discussion } from '../models/Discussion.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
 import { User } from '../models/User.js';
+import { getCircleContentFilter } from '../services/circleAccessService.js';
 import {
   calculateTrendingScore,
   calculateForYouScore,
@@ -15,6 +16,8 @@ export const getUnifiedFeed = async (req, res, next) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const skip = (page - 1) * limit;
+    const circleAccess = await getCircleContentFilter(req.user?._id);
+    const accessibleQuery = (query) => ({ $and: [query, circleAccess] });
 
     const allowedFilters = ['for-you', 'trending', 'following', 'latest'];
     if (!allowedFilters.includes(filter)) {
@@ -47,15 +50,15 @@ export const getUnifiedFeed = async (req, res, next) => {
 
       // Query eligible content authored by followed accounts
       const [rawPosts, rawDiscussions, rawKnowledge] = await Promise.all([
-        Post.find({ authorId: { $in: followingIds }, status: 'published' })
+        Post.find(accessibleQuery({ authorId: { $in: followingIds }, status: 'published' }))
           .sort({ createdAt: -1 })
           .limit(limit * 2)
           .lean(),
-        Discussion.find({ authorId: { $in: followingIds }, status: { $ne: 'removed' } })
+        Discussion.find(accessibleQuery({ authorId: { $in: followingIds }, status: { $ne: 'removed' } }))
           .sort({ createdAt: -1 })
           .limit(limit * 2)
           .lean(),
-        KnowledgeArticle.find({ authorId: { $in: followingIds }, status: 'published' })
+        KnowledgeArticle.find(accessibleQuery({ authorId: { $in: followingIds }, status: 'published' }))
           .sort({ createdAt: -1 })
           .limit(limit * 2)
           .lean(),
@@ -82,9 +85,9 @@ export const getUnifiedFeed = async (req, res, next) => {
     // 2. "Latest" feed: strict chronological across all 3 types
     if (filter === 'latest') {
       const [rawPosts, rawDiscussions, rawKnowledge] = await Promise.all([
-        Post.find({ status: 'published' }).sort({ createdAt: -1 }).limit(skip + limit).lean(),
-        Discussion.find({ status: { $ne: 'removed' } }).sort({ createdAt: -1 }).limit(skip + limit).lean(),
-        KnowledgeArticle.find({ status: 'published' }).sort({ createdAt: -1 }).limit(skip + limit).lean(),
+        Post.find(accessibleQuery({ status: 'published' })).sort({ createdAt: -1 }).limit(skip + limit).lean(),
+        Discussion.find(accessibleQuery({ status: { $ne: 'removed' } })).sort({ createdAt: -1 }).limit(skip + limit).lean(),
+        KnowledgeArticle.find(accessibleQuery({ status: 'published' })).sort({ createdAt: -1 }).limit(skip + limit).lean(),
       ]);
 
       const all = [
@@ -112,9 +115,9 @@ export const getUnifiedFeed = async (req, res, next) => {
     if (filter === 'trending') {
       const candidateLimit = Math.max(100, (skip + limit) * 2);
       const [rawPosts, rawDiscussions, rawKnowledge] = await Promise.all([
-        Post.find({ status: 'published' }).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
-        Discussion.find({ status: { $ne: 'removed' } }).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
-        KnowledgeArticle.find({ status: 'published' }).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
+        Post.find(accessibleQuery({ status: 'published' })).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
+        Discussion.find(accessibleQuery({ status: { $ne: 'removed' } })).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
+        KnowledgeArticle.find(accessibleQuery({ status: 'published' })).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
       ]);
 
       const candidates = [
@@ -162,9 +165,9 @@ export const getUnifiedFeed = async (req, res, next) => {
       }
 
       const [rawPosts, rawDiscussions, rawKnowledge] = await Promise.all([
-        Post.find({ status: 'published' }).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
-        Discussion.find({ status: { $ne: 'removed' } }).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
-        KnowledgeArticle.find({ status: 'published' }).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
+        Post.find(accessibleQuery({ status: 'published' })).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
+        Discussion.find(accessibleQuery({ status: { $ne: 'removed' } })).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
+        KnowledgeArticle.find(accessibleQuery({ status: 'published' })).sort({ createdAt: -1 }).limit(candidateLimit).lean(),
       ]);
 
       const candidates = [

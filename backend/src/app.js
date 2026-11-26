@@ -2,16 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import apiRoutes from './routes/apiRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { clientCorsOptions } from './config/cors.js';
 
 const app = express();
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
-}));
+app.use(cors(clientCorsOptions));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '12mb' }));
+app.use(express.urlencoded({ extended: true, limit: '12mb' }));
 
 // API Base Route
 app.use('/api', apiRoutes);

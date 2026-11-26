@@ -130,15 +130,15 @@ export default function KnowledgeView() {
   return (
     <div className="space-y-6 font-sans">
       {/* Topline Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#f0f0f2]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#f0f0f2] dark:border-slate-800">
         <div>
           <div className="text-[11px] font-extrabold uppercase tracking-[1.1px] text-[#e66c68] mb-1">
             ORVEXA KNOWLEDGE
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17213f] leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17213f] dark:text-white leading-tight">
             Knowledge worth keeping
           </h1>
-          <p className="text-xs sm:text-[13.5px] text-[#737b8d] mt-1">
+          <p className="text-xs sm:text-[13.5px] text-[#737b8d] dark:text-slate-400 mt-1">
             Durable, reusable guides and resources created by the community.
           </p>
         </div>
@@ -148,7 +148,7 @@ export default function KnowledgeView() {
             <button
               type="button"
               onClick={handleOpenDraftsModal}
-              className="bg-[#f0f4ff] hover:bg-[#e6edff] text-[#3f5ce8] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="bg-[#f0f4ff] hover:bg-[#e6edff] text-[#3f5ce8] dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-indigo-300 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Drafts ({draftsCount})</span>
@@ -161,7 +161,7 @@ export default function KnowledgeView() {
             className="bg-[#3f5ce8] hover:bg-[#324ecc] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-2"
           >
             <PenLine className="w-3.5 h-3.5" />
-            <span>Write Article</span>
+            <span>Create</span>
           </button>
         </div>
       </div>
@@ -196,7 +196,7 @@ export default function KnowledgeView() {
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white border border-[#e9e9ed] rounded-2xl p-4 shadow-2xs space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-3">
         {/* Search input & Sort */}
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative flex-1 w-full">
@@ -206,19 +206,19 @@ export default function KnowledgeView() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search knowledge by title, topic, or keyword..."
-              className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-[#e9e9ed] focus:outline-none focus:border-[#3f5ce8]"
+              className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-[#e9e9ed] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#17213f] dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3f5ce8]"
             />
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-            <span className="text-[11px] font-semibold text-[#737b8d]">Sort:</span>
+            <span className="text-[11px] font-semibold text-[#737b8d] dark:text-slate-400">Sort:</span>
             <select
               value={selectedSort}
               onChange={(e) => {
                 setSelectedSort(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-1.5 text-xs font-bold text-[#17213f] bg-[#f7f7f8] border border-[#e9e9ed] rounded-xl focus:outline-none cursor-pointer"
+              className="px-3 py-1.5 text-xs font-bold text-[#17213f] dark:text-slate-100 bg-[#f7f7f8] dark:bg-slate-800 border border-[#e9e9ed] dark:border-slate-700 rounded-xl focus:outline-none cursor-pointer"
             >
               {SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -230,8 +230,8 @@ export default function KnowledgeView() {
         </div>
 
         {/* Format & Category Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#f0f0f2]">
-          <span className="text-[10px] font-bold uppercase text-[#8b92a1] mr-1">Format:</span>
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#f0f0f2] dark:border-slate-800">
+          <span className="text-[10px] font-bold uppercase text-[#8b92a1] dark:text-slate-400 mr-1">Format:</span>
           {FORMATS.map((fmt) => (
             <button
               key={fmt}
@@ -243,16 +243,16 @@ export default function KnowledgeView() {
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                 selectedFormat === fmt
                   ? 'bg-[#3f5ce8] text-white'
-                  : 'bg-[#f7f7f8] text-[#555d70] hover:bg-[#eef1ff] hover:text-[#3f5ce8]'
+                  : 'bg-[#f7f7f8] dark:bg-slate-800 text-[#555d70] dark:text-slate-300 hover:bg-[#eef1ff] dark:hover:bg-slate-700 hover:text-[#3f5ce8]'
               }`}
             >
               {fmt}
             </button>
           ))}
 
-          <span className="text-xs text-[#d1d5db] mx-1">|</span>
+          <span className="text-xs text-[#d1d5db] dark:text-slate-600 mx-1">|</span>
 
-          <span className="text-[10px] font-bold uppercase text-[#8b92a1] mr-1">Category:</span>
+          <span className="text-[10px] font-bold uppercase text-[#8b92a1] dark:text-slate-400 mr-1">Category:</span>
           {CATEGORIES.slice(0, 5).map((cat) => (
             <button
               key={cat}
@@ -263,8 +263,8 @@ export default function KnowledgeView() {
               }}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                 selectedCategory === cat
-                  ? 'bg-[#17213f] text-white font-bold'
-                  : 'bg-[#f7f7f8] text-[#737b8d] hover:text-[#17213f]'
+                  ? 'bg-[#17213f] dark:bg-indigo-500 text-white font-bold'
+                  : 'bg-[#f7f7f8] dark:bg-slate-800 text-[#737b8d] dark:text-slate-300 hover:text-[#17213f] dark:hover:text-white'
               }`}
             >
               {cat}
@@ -276,14 +276,14 @@ export default function KnowledgeView() {
       {/* Article Grid / List */}
       <div className="space-y-3">
         {loading ? (
-          <div className="py-16 text-center text-xs text-[#8b92a1]">
+          <div className="py-16 text-center text-xs text-[#8b92a1] dark:text-slate-400">
             Loading knowledge articles...
           </div>
         ) : articles.length === 0 ? (
-          <div className="py-16 text-center text-xs text-[#8b92a1] border border-dashed border-[#e9e9ed] rounded-3xl space-y-2 bg-white">
+          <div className="py-16 text-center text-xs text-[#8b92a1] dark:text-slate-400 border border-dashed border-[#e9e9ed] dark:border-slate-700 rounded-3xl space-y-2 bg-white dark:bg-slate-900">
             <BookOpen className="w-8 h-8 text-[#b0b6c4] mx-auto" />
-            <p className="font-bold text-[#17213f]">No knowledge articles found</p>
-            <p className="text-[11.5px] max-w-sm mx-auto text-[#737b8d]">
+            <p className="font-bold text-[#17213f] dark:text-white">No knowledge articles found</p>
+            <p className="text-[11.5px] max-w-sm mx-auto text-[#737b8d] dark:text-slate-400">
               {debouncedSearch || selectedFormat !== 'All' || selectedCategory !== 'All topics'
                 ? 'Try adjusting your filters or search terms.'
                 : 'Be the first to synthesize a discussion or write a practical guide.'}
@@ -294,7 +294,7 @@ export default function KnowledgeView() {
               className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-[#3f5ce8] hover:bg-[#324ecc] text-white rounded-xl text-xs font-bold cursor-pointer"
             >
               <PenLine className="w-3.5 h-3.5" />
-              <span>Write first article</span>
+              <span>Create first article</span>
             </button>
           </div>
         ) : (
@@ -310,7 +310,7 @@ export default function KnowledgeView() {
 
       {/* Pagination Footer */}
       {total > 12 && (
-        <div className="flex items-center justify-between pt-4 border-t border-[#f0f0f2] text-xs font-semibold text-[#737b8d]">
+        <div className="flex items-center justify-between pt-4 border-t border-[#f0f0f2] dark:border-slate-800 text-xs font-semibold text-[#737b8d] dark:text-slate-400">
           <span>
             Showing {articles.length} of {total} publications
           </span>
@@ -319,7 +319,7 @@ export default function KnowledgeView() {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1.5 rounded-xl border border-[#e9e9ed] bg-white disabled:opacity-40 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl border border-[#e9e9ed] dark:border-slate-700 bg-white dark:bg-slate-900 text-[#17213f] dark:text-slate-200 disabled:opacity-40 cursor-pointer"
             >
               Previous
             </button>
@@ -328,7 +328,7 @@ export default function KnowledgeView() {
               type="button"
               disabled={page * 12 >= total}
               onClick={() => setPage((p) => p + 1)}
-              className="px-3 py-1.5 rounded-xl border border-[#e9e9ed] bg-white disabled:opacity-40 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl border border-[#e9e9ed] dark:border-slate-700 bg-white dark:bg-slate-900 text-[#17213f] dark:text-slate-200 disabled:opacity-40 cursor-pointer"
             >
               Next
             </button>
@@ -342,26 +342,26 @@ export default function KnowledgeView() {
           onClick={(e) => e.target === e.currentTarget && setShowDraftsModal(false)}
           className="fixed inset-0 bg-[#17213f]/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 font-sans"
         >
-          <div className="bg-white rounded-3xl p-6 w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl border border-[#e9e9ed] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl border border-[#e9e9ed] dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2] dark:border-slate-800">
               <div>
-                <h3 className="text-lg font-black text-[#17213f]">Your Knowledge Drafts</h3>
-                <p className="text-xs text-[#737b8d]">Continue editing your unpublished articles</p>
+                <h3 className="text-lg font-black text-[#17213f] dark:text-white">Your Knowledge Drafts</h3>
+                <p className="text-xs text-[#737b8d] dark:text-slate-400">Continue editing your unpublished articles</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowDraftsModal(false)}
-                className="p-1.5 text-[#737b8d] hover:text-[#17213f] rounded-lg cursor-pointer"
+                className="p-1.5 text-[#737b8d] dark:text-slate-400 hover:text-[#17213f] dark:hover:text-white rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {loadingDrafts ? (
-              <div className="py-12 text-center text-xs text-[#8b92a1]">Loading drafts...</div>
+              <div className="py-12 text-center text-xs text-[#8b92a1] dark:text-slate-400">Loading drafts...</div>
             ) : draftsList.length === 0 ? (
               <div className="py-10 text-center space-y-3">
-                <p className="text-xs text-[#8b92a1]">You have no active drafts.</p>
+                <p className="text-xs text-[#8b92a1] dark:text-slate-400">You have no active drafts.</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -378,7 +378,7 @@ export default function KnowledgeView() {
                 {draftsList.map((d) => (
                   <div
                     key={d._id}
-                    className="p-3.5 rounded-2xl border border-[#e9e9ed] hover:border-[#3f5ce8]/30 transition-all flex items-center justify-between gap-3 group"
+                    className="p-3.5 rounded-2xl border border-[#e9e9ed] dark:border-slate-700 hover:border-[#3f5ce8]/30 transition-all flex items-center justify-between gap-3 group"
                   >
                     <div
                       className="cursor-pointer flex-1 min-w-0"
@@ -387,10 +387,10 @@ export default function KnowledgeView() {
                         navigate(`/knowledge/studio/${d._id}`);
                       }}
                     >
-                      <h4 className="text-sm font-bold text-[#17213f] group-hover:text-[#3f5ce8] truncate transition-colors">
+                      <h4 className="text-sm font-bold text-[#17213f] dark:text-white group-hover:text-[#3f5ce8] truncate transition-colors">
                         {d.title || 'Untitled Draft'}
                       </h4>
-                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[#8b92a1]">
+                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[#8b92a1] dark:text-slate-400">
                         <span className="capitalize">{d.format || 'guide'}</span>
                         <span>•</span>
                         <span>{d.category || 'General'}</span>
@@ -406,14 +406,14 @@ export default function KnowledgeView() {
                           setShowDraftsModal(false);
                           navigate(`/knowledge/studio/${d._id}`);
                         }}
-                        className="px-3 py-1.5 bg-[#f0f4ff] hover:bg-[#e6edff] text-[#3f5ce8] text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                        className="px-3 py-1.5 bg-[#f0f4ff] hover:bg-[#e6edff] text-[#3f5ce8] dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-indigo-300 text-xs font-bold rounded-xl cursor-pointer transition-colors"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={(e) => handleDeleteDraft(e, d._id)}
-                        className="p-1.5 text-[#8b92a1] hover:text-[#d6554f] hover:bg-[#fff0ee] rounded-xl cursor-pointer transition-colors"
+                        className="p-1.5 text-[#8b92a1] dark:text-slate-400 hover:text-[#d6554f] hover:bg-[#fff0ee] dark:hover:bg-red-950/30 rounded-xl cursor-pointer transition-colors"
                         title="Delete draft"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -429,7 +429,7 @@ export default function KnowledgeView() {
                       setShowDraftsModal(false);
                       handleStartNewArticle();
                     }}
-                    className="w-full py-2.5 border border-dashed border-[#e9e9ed] hover:border-[#3f5ce8] hover:text-[#3f5ce8] text-xs font-bold text-[#737b8d] rounded-2xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                    className="w-full py-2.5 border border-dashed border-[#e9e9ed] dark:border-slate-700 hover:border-[#3f5ce8] hover:text-[#3f5ce8] text-xs font-bold text-[#737b8d] dark:text-slate-400 rounded-2xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" /> Create another draft
                   </button>

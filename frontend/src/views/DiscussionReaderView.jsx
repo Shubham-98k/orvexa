@@ -16,8 +16,10 @@ import {
   Send,
   Edit3,
   Check,
+  Flag,
 } from 'lucide-react';
 import Avatar from '../components/common/Avatar';
+import ReportModal from '../components/common/ReportModal';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
@@ -40,19 +42,13 @@ export default function DiscussionReaderView() {
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [reportingDiscussion, setReportingDiscussion] = useState(false);
 
-  const isAuthor =
-    Boolean(user) &&
-    (
-      (
-        Boolean(discussion?.authorId) &&
-        String(user._id || user.id) === String(discussion?.authorId?._id || discussion?.authorId)
-      ) ||
-      user.platformRole === 'admin' ||
-      user.platformRole === 'moderator' ||
-      user.role === 'admin' ||
-      user.role === 'moderator'
-    );
+  const isDiscussionOwner = Boolean(
+    user &&
+    discussion?.authorId &&
+    String(user._id || user.id) === String(discussion.authorId?._id || discussion.authorId)
+  );
 
   const fetchDiscussionData = () => {
     if (!discussionId) return;
@@ -347,7 +343,18 @@ export default function DiscussionReaderView() {
             <span>Create Knowledge from Discussion</span>
           </button>
 
-          {isAuthor && (
+          {user && discussion.authorId && !isDiscussionOwner && (
+            <button
+              type="button"
+              onClick={() => setReportingDiscussion(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+            >
+              <Flag className="h-3.5 w-3.5" />
+              <span>Report</span>
+            </button>
+          )}
+
+          {isDiscussionOwner && (
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -548,6 +555,14 @@ export default function DiscussionReaderView() {
           </div>
         )}
       </section>
+      {reportingDiscussion && (
+        <ReportModal
+          targetType="discussion"
+          targetId={discussion._id}
+          circleId={discussion.circleId?._id || discussion.circleId}
+          onClose={() => setReportingDiscussion(false)}
+        />
+      )}
     </div>
   );
 }

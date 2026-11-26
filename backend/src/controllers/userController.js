@@ -2,6 +2,7 @@ import { User } from '../models/User.js';
 import { Post } from '../models/Post.js';
 import { Discussion } from '../models/Discussion.js';
 import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
+import { getCircleContentFilter } from '../services/circleAccessService.js';
 
 /**
  * GET /api/users/me
@@ -30,26 +31,33 @@ export async function getUserByUsername(req, res) {
       'username displayName headline bio initials avatarColor avatar platformRole followersCount followingCount followers createdAt'
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
+    const circleAccess = await getCircleContentFilter(req.user?._id);
 
     // Fetch user's public posts, discussions, and knowledge articles
     const [posts, discussions, knowledge] = await Promise.all([
       Post.find({
-        $or: [{ authorName: user.displayName }, { authorId: user._id }],
-        status: 'published',
+        $and: [
+          { $or: [{ authorName: user.displayName }, { authorId: user._id }], status: 'published' },
+          circleAccess,
+        ],
       })
         .sort({ createdAt: -1 })
         .limit(20)
         .lean(),
       Discussion.find({
-        $or: [{ authorName: user.displayName }, { authorId: user._id }],
-        status: { $ne: 'removed' },
+        $and: [
+          { $or: [{ authorName: user.displayName }, { authorId: user._id }], status: { $nin: ['removed', 'closed'] } },
+          circleAccess,
+        ],
       })
         .sort({ createdAt: -1 })
         .limit(20)
         .lean(),
       KnowledgeArticle.find({
-        $or: [{ authorName: user.displayName }, { authorId: user._id }],
-        status: 'published',
+        $and: [
+          { $or: [{ authorName: user.displayName }, { authorId: user._id }], status: 'published' },
+          circleAccess,
+        ],
       })
         .sort({ publishedAt: -1, createdAt: -1 })
         .limit(20)

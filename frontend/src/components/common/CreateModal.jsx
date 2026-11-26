@@ -1,13 +1,11 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   X,
   Image as ImageIcon,
-  Heading1,
   Heading2,
   Type,
   Quote,
   List,
-  Plus,
   Trash2,
   ChevronUp,
   ChevronDown,
@@ -19,8 +17,9 @@ import {
   Check,
 } from 'lucide-react';
 import { apiPost } from '../../api/client';
+import { compressImageFile } from '../../utils/imageUpload';
 
-export const CATEGORIES = [
+const CATEGORIES = [
   'Culture',
   'Technology',
   'UX',
@@ -28,6 +27,22 @@ export const CATEGORIES = [
   'Learning',
   'Work & Culture',
   'Thinking',
+];
+
+const CIRCLE_CATEGORIES = [
+  'Technology',
+  'Business',
+  'Education',
+  'Science',
+  'Health and Fitness',
+  'Arts and Creativity',
+  'Books and Literature',
+  'Personal Finance',
+  'Lifestyle',
+  'Gaming',
+  'Travel',
+  'Community',
+  'Other',
 ];
 
 const SAMPLE_PRESET_IMAGES = [
@@ -67,14 +82,18 @@ function createBlock(type = 'paragraph', value = '') {
   };
 }
 
-export default function CreateModal({ isOpen, onClose, onItemCreated, defaultType = 'Post' }) {
+export default function CreateModal({ isOpen, onClose, onItemCreated, defaultType = 'Post', defaultCircleId = null }) {
   const [contentType, setContentType] = useState(defaultType);
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Culture');
+  const [category, setCategory] = useState(defaultType === 'Circle' ? 'Other' : 'Culture');
   const [tags, setTags] = useState('');
   const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [circleVisibility, setCircleVisibility] = useState('public');
+  const [joinPolicy, setJoinPolicy] = useState('open');
+  const [circleAvatar, setCircleAvatar] = useState('');
+  const [circleCoverImage, setCircleCoverImage] = useState('');
 
   // Structured blocks state
   const [blocks, setBlocks] = useState([
@@ -126,19 +145,30 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
     }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      const dataUrl = loadEvt.target?.result;
-      if (dataUrl && targetBlockIdForUpload) {
+    try {
+      const dataUrl = await compressImageFile(file);
+      if (targetBlockIdForUpload) {
         updateBlock(targetBlockIdForUpload, { value: dataUrl });
       }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    } catch (uploadError) {
+      setError(uploadError.message || 'Unable to process this image.');
+    }
+  };
+
+  const handleCircleImageChange = async (event, setImage, maxDimension) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      setImage(await compressImageFile(file, { maxDimension }));
+    } catch (uploadError) {
+      setError(uploadError.message || 'Unable to process this image.');
+    }
   };
 
   // Serialize blocks into markdown body & find primary image
@@ -195,6 +225,7 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
           body: fullBody,
           imageUrl: primaryImageUrl || undefined,
           tags: parsedTags.length > 0 ? parsedTags : ['#OrvexaCommunity'],
+          ...(defaultCircleId ? { circleId: defaultCircleId, visibility: 'circle' } : {}),
         });
         if (onItemCreated) onItemCreated(res.post, 'Post');
       } else if (contentType === 'Discussion') {
@@ -209,6 +240,7 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
           imageUrl: primaryImageUrl || undefined,
           category,
           tags: parsedTags,
+          ...(defaultCircleId ? { circleId: defaultCircleId, visibility: 'circle' } : {}),
         });
         if (onItemCreated) onItemCreated(res.discussion, 'Discussion');
       } else if (contentType === 'Knowledge article') {
@@ -224,6 +256,7 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
           coverImage: primaryImageUrl || undefined,
           category,
           readTime: '5 min read',
+          ...(defaultCircleId ? { circleId: defaultCircleId, visibility: 'circle' } : {}),
         });
         if (onItemCreated) onItemCreated(res.article, 'Knowledge');
       } else if (contentType === 'Circle') {
@@ -236,6 +269,10 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
           name: title.trim(),
           description: fullBody || 'Community circle on Orvexa',
           category,
+          visibility: circleVisibility,
+          joinPolicy,
+          avatar: circleAvatar,
+          coverImage: circleCoverImage,
         });
         if (onItemCreated) onItemCreated(res.circle, 'Circle');
       }
@@ -308,7 +345,7 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -329,7 +366,10 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
                 <button
                   key={opt.type}
                   type="button"
-                  onClick={() => setContentType(opt.type)}
+                  onClick={() => {
+                    setContentType(opt.type);
+                    setCategory(opt.type === 'Circle' ? 'Other' : 'Culture');
+                  }}
                   className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
                     contentType === opt.type
                       ? 'bg-[#3f5ce8]/10 dark:bg-[#3f5ce8]/20 border-[#3f5ce8] text-[#3f5ce8] dark:text-indigo-400 font-bold shadow-2xs'
@@ -674,9 +714,56 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
             </div>
           )}
 
+          {contentType === 'Circle' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <CircleImageUpload
+                  label="Circle avatar"
+                  image={circleAvatar}
+                  onChange={(event) => handleCircleImageChange(event, setCircleAvatar, 512)}
+                  onRemove={() => setCircleAvatar('')}
+                  shape="avatar"
+                />
+                <CircleImageUpload
+                  label="Cover image"
+                  image={circleCoverImage}
+                  onChange={(event) => handleCircleImageChange(event, setCircleCoverImage, 1600)}
+                  onRemove={() => setCircleCoverImage('')}
+                  shape="cover"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="text-xs font-bold text-[#17213f] dark:text-slate-200">
+                  Visibility
+                  <select
+                    value={circleVisibility}
+                    onChange={(e) => setCircleVisibility(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 rounded-xl border border-[#e9e9ed] dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-normal text-[#17213f] dark:text-white"
+                  >
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                    <option value="hidden">Hidden</option>
+                  </select>
+                </label>
+                <label className="text-xs font-bold text-[#17213f] dark:text-slate-200">
+                  Joining policy
+                  <select
+                    value={joinPolicy}
+                    onChange={(e) => setJoinPolicy(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 rounded-xl border border-[#e9e9ed] dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-normal text-[#17213f] dark:text-white"
+                  >
+                    <option value="open">Anyone can join</option>
+                    <option value="approval_required">Request to join</option>
+                    <option value="invite_only">Invite only</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Category & Tags */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div>
+            <div className={contentType === 'Circle' ? 'sm:col-span-2' : ''}>
               <label className="block text-xs font-bold text-[#17213f] dark:text-slate-200 mb-1">
                 Category
               </label>
@@ -685,7 +772,7 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-[#e9e9ed] dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-[#17213f] dark:text-white focus:outline-none"
               >
-                {CATEGORIES.map((cat) => (
+                {(contentType === 'Circle' ? CIRCLE_CATEGORIES : CATEGORIES).map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
@@ -727,6 +814,34 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function CircleImageUpload({ label, image, onChange, onRemove, shape }) {
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+      <label className="block text-xs font-bold text-[#17213f] dark:text-slate-200">
+        {label}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={onChange}
+          className="mt-2 block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold dark:text-slate-300 dark:file:bg-slate-800"
+        />
+      </label>
+      {image ? (
+        <div className="mt-3 flex items-center gap-3">
+          <img
+            src={image}
+            alt={`${label} preview`}
+            className={shape === 'avatar' ? 'h-14 w-14 rounded-xl object-cover' : 'h-14 w-28 rounded-xl object-cover'}
+          />
+          <button type="button" onClick={onRemove} className="text-xs font-bold text-red-600 dark:text-red-400">Remove</button>
+        </div>
+      ) : (
+        <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Optional · JPG, PNG, or WebP</p>
+      )}
     </div>
   );
 }

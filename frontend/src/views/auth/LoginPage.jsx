@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { apiGet } from '../../api/client';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -13,8 +14,24 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [demoAccounts, setDemoAccounts] = useState([]);
 
-  const from = location.state?.from?.pathname || '/app';
+  useEffect(() => {
+    let active = true;
+    apiGet('/public/demo-accounts')
+      .then((response) => {
+        if (active && response?.enabled) setDemoAccounts(response.accounts || []);
+      })
+      .catch((requestError) => {
+        console.warn('Demo account list is unavailable:', requestError.message);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const fromLocation = location.state?.from;
+  const from = fromLocation
+    ? `${fromLocation.pathname || '/app'}${fromLocation.search || ''}${fromLocation.hash || ''}`
+    : '/app';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -112,10 +129,52 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {demoAccounts.length > 0 && (
+          <details className="mt-4 rounded-xl border border-[#e9e9ed] bg-[#fafafc] px-3 py-2.5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-bold text-[#17213f]">
+              <span>Test accounts and roles</span>
+              <span className="text-[10px] font-medium text-[#737b8d]">{demoAccounts.length} accounts</span>
+            </summary>
+            <p className="mt-2 text-[10px] leading-relaxed text-[#737b8d]">
+              Shared test credentials. Elevated Circle roles are listed by Circle name.
+            </p>
+            <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-[#e9e9ed] bg-white">
+              <table className="w-full min-w-[560px] border-collapse text-left text-[10px]">
+                <thead className="sticky top-0 bg-slate-50 text-[#737b8d]">
+                  <tr>
+                    <th className="px-2.5 py-2 font-semibold">Username / email</th>
+                    <th className="px-2.5 py-2 font-semibold">Password</th>
+                    <th className="px-2.5 py-2 font-semibold">Roles</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f0f2]">
+                  {demoAccounts.map((account) => (
+                    <tr key={account.username} className="align-top text-[#17213f]">
+                      <td className="px-2.5 py-2">
+                        <div className="font-bold">{account.username}</div>
+                        <div className="mt-0.5 text-[#737b8d]">{account.email}</div>
+                      </td>
+                      <td className="whitespace-nowrap px-2.5 py-2 font-mono">{account.password}</td>
+                      <td className="px-2.5 py-2">
+                        <div className="font-semibold">Platform {account.platformRole}</div>
+                        {account.circleRoles?.map((circleRole) => (
+                          <div key={`${circleRole.circleName}-${circleRole.role}`} className="mt-0.5 text-[#737b8d]">
+                            Circle {circleRole.role} · {circleRole.circleName}
+                          </div>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
+
         <div className="mt-6 pt-5 border-t border-[#f0f0f2] text-center">
           <p className="text-xs text-[#737b8d]">
             Don't have an account?{' '}
-            <Link to="/signup" className="font-bold text-[#3f5ce8] hover:underline">
+            <Link to="/signup" state={{ from: fromLocation }} className="font-bold text-[#3f5ce8] hover:underline">
               Create one now
             </Link>
           </p>

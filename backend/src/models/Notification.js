@@ -34,6 +34,12 @@ const notificationSchema = new mongoose.Schema(
     },
     targetType: String,
     targetId: mongoose.Schema.Types.ObjectId,
+    circleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Circle',
+      default: null,
+      index: true,
+    },
     timeText: {
       type: String,
       default: 'Just now',
@@ -87,8 +93,14 @@ const reportSchema = new mongoose.Schema(
     },
     targetType: {
       type: String,
-      enum: ['post', 'discussion', 'contribution', 'knowledge', 'circle', 'user'],
+      enum: ['post', 'discussion', 'contribution', 'knowledge', 'message', 'circle', 'user'],
       required: true,
+    },
+    circleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Circle',
+      default: null,
+      index: true,
     },
     targetId: {
       type: mongoose.Schema.Types.ObjectId,

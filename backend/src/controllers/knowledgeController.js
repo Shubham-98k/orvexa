@@ -7,10 +7,15 @@ import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { Post } from '../models/Post.js';
 import { PostReply } from '../models/PostReply.js';
-import { Save, Notification } from '../models/Notification.js';
+import { Save } from '../models/Notification.js';
 import { User } from '../models/User.js';
+import { Circle } from '../models/Circle.js';
 import { createSourceSnapshot } from '../services/sourceIngestionService.js';
 import { runZeroCostAnalysis } from '../services/analysisPipelineService.js';
+import { authorizeCircleContent, getCircleContentFilter, withCircleContentAccess } from '../services/circleAccessService.js';
+
+const findAccessibleKnowledge = async (articleId, userId) =>
+  KnowledgeArticle.findOne(await withCircleContentAccess({ _id: articleId }, userId));
 
 // ==========================================
 // 1. PUBLISHED KNOWLEDGE BROWSING & DETAIL
@@ -19,19 +24,24 @@ import { runZeroCostAnalysis } from '../services/analysisPipelineService.js';
 export const getKnowledgeArticles = async (req, res, next) => {
   try {
     const { category, format, topic, search, sort = 'newest', mode, page = 1, limit = 12 } = req.query;
-    const query = { status: 'published' };
+    const query = {
+      $and: [
+        { status: 'published' },
+        await getCircleContentFilter(req.user?._id),
+      ],
+    };
 
     if (category && category !== 'All' && category !== 'All topics') {
-      query.category = category;
+      query.$and[0].category = category;
     }
     if (format && format !== 'All') {
-      query.format = format.toLowerCase();
+      query.$and[0].format = format.toLowerCase();
     }
     if (topic) {
-      query.topics = topic;
+      query.$and[0].topics = topic;
     }
     if (search && search.trim()) {
-      query.$text = { $search: search.trim() };
+      query.$and[0].$text = { $search: search.trim() };
     }
 
     // Following mode: requires authenticated user
@@ -47,7 +57,7 @@ export const getKnowledgeArticles = async (req, res, next) => {
       if (followingIds.length === 0) {
         return res.json({ articles: [], total: 0, page: 1, totalPages: 0 });
       }
-      query.authorId = { $in: followingIds };
+      query.$and[0].authorId = { $in: followingIds };
     }
 
     // Sort order
@@ -106,8 +116,13 @@ export const getKnowledgeArticles = async (req, res, next) => {
 export const getKnowledgeById = async (req, res, next) => {
   try {
     const { articleId } = req.params;
-    const article = await KnowledgeArticle.findById(articleId).lean();
+    const article = await KnowledgeArticle.findOne(
+      await withCircleContentAccess({ _id: articleId }, req.user?._id)
+    ).lean();
     if (!article) return res.status(404).json({ error: 'Article not found' });
+    const articleAuthor = article.authorId
+      ? await User.findById(article.authorId).select('username').lean()
+      : null;
 
     // Enforce publication visibility
     const isAuthor = req.user && article.authorId && req.user._id.toString() === article.authorId.toString();
@@ -134,24 +149,24 @@ export const getKnowledgeById = async (req, res, next) => {
     }
 
     // Fetch related articles (same category or shared topics)
-    const relatedArticles = await KnowledgeArticle.find({
+    const relatedArticles = await KnowledgeArticle.find(await withCircleContentAccess({
       _id: { $ne: article._id },
       status: 'published',
       $or: [
         { category: article.category },
         { topics: { $in: article.topics || [] } },
       ],
-    })
+    }, req.user?._id))
       .select('_id title summary category format readingTimeMinutes readTime authorName authorInitials authorColor publishedAt')
       .limit(3)
       .lean();
 
     // Fetch more from author
-    const moreFromAuthor = await KnowledgeArticle.find({
+    const moreFromAuthor = await KnowledgeArticle.find(await withCircleContentAccess({
       _id: { $ne: article._id },
       authorId: article.authorId,
       status: 'published',
-    })
+    }, req.user?._id))
       .select('_id title summary readingTimeMinutes readTime publishedAt')
       .limit(3)
       .lean();
@@ -159,8 +174,11 @@ export const getKnowledgeById = async (req, res, next) => {
     // Origin metadata if derived from Discussion or Post
     let originDetails = null;
     if (article.origin?.type === 'discussion' && article.origin.discussionId) {
-      const disc = await Discussion.findById(article.origin.discussionId)
-        .select('_id title authorName commentsCount contributorsCount')
+      const disc = await Discussion.findOne(await withCircleContentAccess(
+        { _id: article.origin.discussionId },
+        req.user?._id
+      ))
+        .select('_id title authorName commentsCount contributorsCount circleId')
         .lean();
       if (disc) {
         originDetails = {
@@ -170,11 +188,15 @@ export const getKnowledgeById = async (req, res, next) => {
           authorName: disc.authorName,
           contributionCount: disc.commentsCount,
           contributorCount: disc.contributorsCount,
+          circleId: disc.circleId || null,
         };
       }
     } else if (article.origin?.type === 'post' && article.origin.postId) {
-      const post = await Post.findById(article.origin.postId)
-        .select('_id title body authorName commentCount likeCount')
+      const post = await Post.findOne(await withCircleContentAccess(
+        { _id: article.origin.postId },
+        req.user?._id
+      ))
+        .select('_id title body authorName commentCount likeCount circleId')
         .lean();
       if (post) {
         originDetails = {
@@ -183,13 +205,23 @@ export const getKnowledgeById = async (req, res, next) => {
           title: post.title || post.body.slice(0, 70),
           authorName: post.authorName,
           commentCount: post.commentCount,
+          circleId: post.circleId || null,
         };
       }
     }
 
+    const sourceCircleId = article.origin?.circleId || originDetails?.circleId || article.circleId;
+    const circle = sourceCircleId
+      ? await Circle.findById(sourceCircleId).select('_id name slug').lean()
+      : null;
+
     res.json({
       article: {
         ...article,
+        authorUsername: articleAuthor?.username || null,
+        circleDetails: circle
+          ? { _id: circle._id, name: circle.name, slug: circle.slug }
+          : null,
         isSaved,
         hasVotedHelpful,
         isFollowingAuthor,
@@ -208,7 +240,7 @@ export const voteHelpful = async (req, res, next) => {
     const { articleId } = req.params;
     const userId = req.user._id;
 
-    const article = await KnowledgeArticle.findById(articleId);
+    const article = await findAccessibleKnowledge(articleId, userId);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     if (!Array.isArray(article.helpfulVoters)) {
@@ -237,7 +269,7 @@ export const voteHelpful = async (req, res, next) => {
 export const saveKnowledge = async (req, res, next) => {
   try {
     const { articleId } = req.params;
-    const article = await KnowledgeArticle.findById(articleId);
+    const article = await findAccessibleKnowledge(articleId, req.user._id);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     const existing = await Save.findOne({ userId: req.user._id, itemType: 'knowledge', itemId: articleId });
@@ -270,46 +302,18 @@ export const saveKnowledge = async (req, res, next) => {
 export const deleteKnowledgeArticle = async (req, res, next) => {
   try {
     const { articleId } = req.params;
-    const { reason } = req.body || {};
     const article = await KnowledgeArticle.findById(articleId);
     if (!article) {
       return res.status(404).json({ error: 'Article not found' });
     }
 
     const isOwner = req.user && String(article.authorId) === String(req.user._id);
-    const isModOrAdmin = req.user && (
-      req.user.platformRole === 'admin' ||
-      req.user.platformRole === 'moderator' ||
-      req.user.role === 'admin' ||
-      req.user.role === 'moderator'
-    );
-
-    if (!isOwner && !isModOrAdmin) {
+    if (!isOwner) {
       return res.status(403).json({ error: 'Unauthorized to delete this knowledge article' });
     }
 
     article.status = 'archived';
     await article.save();
-
-    if (isModOrAdmin && !isOwner && article.authorId) {
-      try {
-        await Notification.create({
-          recipientId: article.authorId,
-          actorId: req.user._id,
-          actorName: req.user.displayName || req.user.username || 'Moderation Team',
-          actorInitials: req.user.initials || 'MOD',
-          type: 'content_deleted',
-          title: 'Article removed by moderation',
-          message: reason || 'Your article was removed by moderation for violating community standards.',
-          reason: reason || 'Violating community guidelines',
-          targetType: 'knowledge',
-          targetId: article._id,
-          timeText: 'Just now',
-        });
-      } catch (notifErr) {
-        console.error('Failed to create moderation notification:', notifErr);
-      }
-    }
 
     res.json({ success: true, message: 'Knowledge article removed successfully' });
   } catch (err) {
@@ -323,7 +327,14 @@ export const deleteKnowledgeArticle = async (req, res, next) => {
 
 export const createIndependentDraft = async (req, res, next) => {
   try {
-    const { title, format = 'guide', category = 'Thinking', topics = [] } = req.body || {};
+    const { title, format = 'guide', category = 'Thinking', topics = [], circleId, visibility } = req.body || {};
+    const circleAccess = await authorizeCircleContent({
+      circleId,
+      userId: req.user._id,
+      contentType: 'knowledge',
+      visibility,
+    });
+    if (circleAccess.error) return res.status(circleAccess.status).json({ error: circleAccess.error });
 
     const initialBlocks = [
       {
@@ -342,6 +353,8 @@ export const createIndependentDraft = async (req, res, next) => {
 
     const draft = await KnowledgeDraft.create({
       authorId: req.user._id,
+      circleId: circleAccess.circle?._id || null,
+      visibility: circleAccess.visibility,
       title: title || 'Untitled Knowledge Draft',
       format,
       category,
@@ -362,6 +375,10 @@ export const createDraftFromDiscussion = async (req, res, next) => {
   try {
     const { discussionId } = req.params;
     const { focus = 'all_themes', selectionCriteria = {} } = req.body || {};
+    const sourceDiscussion = await Discussion.findOne(
+      await withCircleContentAccess({ _id: discussionId }, req.user._id)
+    ).lean();
+    if (!sourceDiscussion) return res.status(404).json({ error: 'Discussion not found' });
 
     // 1. Create reproducible source snapshot using cursor batching
     const { snapshot, rawItems, sourceRecord } = await createSourceSnapshot({
@@ -402,6 +419,8 @@ export const createDraftFromDiscussion = async (req, res, next) => {
     // 4. Create draft linked to snapshot & analysis
     const draft = await KnowledgeDraft.create({
       authorId: req.user._id,
+      circleId: sourceDiscussion.visibility === 'circle' ? sourceDiscussion.circleId : null,
+      visibility: sourceDiscussion.visibility === 'circle' ? 'circle' : 'public',
       title: `${sourceRecord.title}: Synthesized Guide`,
       subtitle: `Community insights and practices from ${snapshot.uniqueContributors} contributors`,
       summary: `Synthesized from discussion with ${snapshot.totalEligibleSources} contributions.`,
@@ -413,6 +432,7 @@ export const createDraftFromDiscussion = async (req, res, next) => {
       origin: {
         type: 'discussion',
         discussionId: sourceRecord._id,
+        circleId: sourceDiscussion.circleId || null,
       },
       sourceSnapshotId: snapshot._id,
       sourceAnalysisId: analysis._id,
@@ -430,6 +450,10 @@ export const createDraftFromPost = async (req, res, next) => {
   try {
     const { postId } = req.params;
     const { includeReplies = true, focus = 'all_themes' } = req.body || {};
+    const sourcePost = await Post.findOne(
+      await withCircleContentAccess({ _id: postId }, req.user._id)
+    ).lean();
+    if (!sourcePost) return res.status(404).json({ error: 'Post not found' });
 
     // 1. Create source snapshot for post (handles 0 replies cleanly)
     const { snapshot, rawItems, sourceRecord } = await createSourceSnapshot({
@@ -477,6 +501,8 @@ export const createDraftFromPost = async (req, res, next) => {
     // 4. Create draft
     const draft = await KnowledgeDraft.create({
       authorId: req.user._id,
+      circleId: sourcePost.visibility === 'circle' ? sourcePost.circleId : null,
+      visibility: sourcePost.visibility === 'circle' ? 'circle' : 'public',
       title,
       summary: sourceRecord.body.slice(0, 160),
       format: 'guide',
@@ -487,6 +513,7 @@ export const createDraftFromPost = async (req, res, next) => {
       origin: {
         type: 'post',
         postId: sourceRecord._id,
+        circleId: sourcePost.circleId || null,
       },
       sourceSnapshotId: snapshot._id,
       sourceAnalysisId: analysis._id,
@@ -619,6 +646,13 @@ export const publishDraft = async (req, res, next) => {
     if (draft.authorId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Unauthorized publish attempt' });
     }
+    const circleAccess = await authorizeCircleContent({
+      circleId: draft.circleId,
+      userId: req.user._id,
+      contentType: 'knowledge',
+      visibility: draft.visibility,
+    });
+    if (circleAccess.error) return res.status(circleAccess.status).json({ error: circleAccess.error });
 
     if (!draft.title || !draft.title.trim() || draft.title === 'Untitled Draft') {
       return res.status(400).json({ error: 'Please provide a clear title before publishing.' });
@@ -651,6 +685,8 @@ export const publishDraft = async (req, res, next) => {
     }
 
     article.title = draft.title;
+    article.circleId = circleAccess.circle?._id || null;
+    article.visibility = circleAccess.visibility;
     article.subtitle = draft.subtitle || '';
     article.summary = summary;
     article.body = blocks;
@@ -718,7 +754,7 @@ export const publishDraft = async (req, res, next) => {
 export const getArticleSources = async (req, res, next) => {
   try {
     const { articleId } = req.params;
-    const article = await KnowledgeArticle.findById(articleId).lean();
+    const article = await findAccessibleKnowledge(articleId, req.user?._id).lean();
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     const references = article.sourceReferences || [];
@@ -762,7 +798,10 @@ export const getArticleSources = async (req, res, next) => {
     // If references were empty or origin root is present, include the root origin as a source
     if (resolvedSources.length === 0 && article.origin) {
       if (article.origin.type === 'post' && article.origin.postId) {
-        const originPost = await Post.findById(article.origin.postId)
+        const originPost = await Post.findOne(await withCircleContentAccess(
+          { _id: article.origin.postId },
+          req.user?._id
+        ))
           .select('_id authorName authorInitials authorColor body createdAt title')
           .lean();
         if (originPost) {
@@ -780,7 +819,10 @@ export const getArticleSources = async (req, res, next) => {
           });
         }
       } else if (article.origin.type === 'discussion' && article.origin.discussionId) {
-        const originDisc = await Discussion.findById(article.origin.discussionId)
+        const originDisc = await Discussion.findOne(await withCircleContentAccess(
+          { _id: article.origin.discussionId },
+          req.user?._id
+        ))
           .select('_id authorName authorInitials authorColor body createdAt title')
           .lean();
         if (originDisc) {
@@ -809,16 +851,25 @@ export const getArticleSources = async (req, res, next) => {
 // Backwards-compatible legacy create
 export const createKnowledge = async (req, res, next) => {
   try {
-    const { title, subtitle, summary, content, category, readTime, source, sourceDiscussionId, references, body, coverImage } = req.body;
+    const { title, subtitle, summary, content, category, readTime, source, sourceDiscussionId, references, body, coverImage, circleId, visibility } = req.body;
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
     }
+    const circleAccess = await authorizeCircleContent({
+      circleId,
+      userId: req.user._id,
+      contentType: 'knowledge',
+      visibility,
+    });
+    if (circleAccess.error) return res.status(circleAccess.status).json({ error: circleAccess.error });
 
     const article = await KnowledgeArticle.create({
       authorId: req.user._id,
       authorName: req.user.displayName,
       authorInitials: req.user.initials,
       authorColor: req.user.avatarColor,
+      circleId: circleAccess.circle?._id || null,
+      visibility: circleAccess.visibility,
       title: title.trim(),
       subtitle: subtitle || '',
       summary: (summary || content || '').slice(0, 160).trim(),
@@ -846,6 +897,8 @@ export const createKnowledge = async (req, res, next) => {
 export const getArticleVersions = async (req, res, next) => {
   try {
     const { articleId } = req.params;
+    const article = await findAccessibleKnowledge(articleId, req.user?._id);
+    if (!article) return res.status(404).json({ error: 'Article not found' });
     const versions = await KnowledgeVersion.find({ articleId })
       .sort({ versionNumber: -1 })
       .select('versionNumber title changeSummary isPublishedSnapshot createdAt authorId')
@@ -862,8 +915,8 @@ export const restoreArticleVersion = async (req, res, next) => {
     const { articleId, versionId } = req.params;
 
     const [article, version] = await Promise.all([
-      KnowledgeArticle.findById(articleId),
-      KnowledgeVersion.findById(versionId),
+      findAccessibleKnowledge(articleId, req.user._id),
+      KnowledgeVersion.findOne({ _id: versionId, articleId }),
     ]);
 
     if (!article) return res.status(404).json({ error: 'Article not found' });
@@ -871,8 +924,7 @@ export const restoreArticleVersion = async (req, res, next) => {
 
     // Authorization
     const isAuthor = article.authorId.toString() === req.user._id.toString();
-    const isAdmin = req.user.platformRole === 'admin' || req.user.role === 'admin';
-    if (!isAuthor && !isAdmin) {
+    if (!isAuthor) {
       return res.status(403).json({ error: 'Unauthorized to restore version' });
     }
 
@@ -1040,20 +1092,13 @@ export const updateKnowledgeArticle = async (req, res, next) => {
     const { articleId } = req.params;
     const { title, summary, content, coverImage, category } = req.body || {};
 
-    const article = await KnowledgeArticle.findById(articleId);
+    const article = await findAccessibleKnowledge(articleId, req.user._id);
     if (!article) {
       return res.status(404).json({ error: 'Knowledge article not found' });
     }
 
     const isOwner = req.user && String(article.authorId) === String(req.user._id);
-    const isModOrAdmin = req.user && (
-      req.user.platformRole === 'admin' ||
-      req.user.platformRole === 'moderator' ||
-      req.user.role === 'admin' ||
-      req.user.role === 'moderator'
-    );
-
-    if (!isOwner && !isModOrAdmin) {
+    if (!isOwner) {
       return res.status(403).json({ error: 'Unauthorized to edit this article' });
     }
 

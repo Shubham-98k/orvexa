@@ -22,6 +22,7 @@ import KnowledgeStudioView from './views/KnowledgeStudioView'
 import KnowledgeReaderView from './views/KnowledgeReaderView'
 import DiscussionReaderView from './views/DiscussionReaderView'
 import CirclesView from './views/CirclesView'
+import CircleDetailView from './views/CircleDetailView'
 import PeopleView from './views/PeopleView'
 import ProfileView from './views/ProfileView'
 
@@ -75,6 +76,7 @@ export default function App() {
             }
           />
           <Route path="/circles" element={<CirclesView />} />
+          <Route path="/circles/:circleId" element={<CircleDetailView />} />
           <Route path="/people" element={<PeopleView />} />
           <Route path="/people-companies" element={<Navigate to="/people" replace />} />
           <Route path="/profile/:username" element={<ProfileView />} />

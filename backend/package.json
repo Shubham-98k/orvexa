@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "test": "node tests/verifyFixes.test.js && node tests/knowledgeAndConversion.test.js"
+    "test": "node tests/verifyFixes.test.js && node tests/knowledgeAndConversion.test.js && node tests/circlesAndMessages.test.js",
+    "seed:circles": "node src/seeds/replaceCircleData.js"
   },
   "keywords": [],
   "author": "",

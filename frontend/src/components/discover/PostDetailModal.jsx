@@ -10,6 +10,7 @@ import {
   Trash2,
   Edit3,
   Check,
+  Flag,
   ChevronDown,
   ChevronRight,
   CornerDownRight,
@@ -17,6 +18,7 @@ import {
 import Avatar from '../common/Avatar';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import ReportModal from '../common/ReportModal';
 
 export default function PostDetailModal({
   post,
@@ -46,6 +48,7 @@ export default function PostDetailModal({
   const [editTitle, setEditTitle] = useState(post?.title || '');
   const [editBody, setEditBody] = useState(post?.body || '');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [reportingPost, setReportingPost] = useState(false);
 
   const onPostUpdatedRef = useRef(onPostUpdated);
   useEffect(() => {
@@ -219,6 +222,8 @@ export default function PostDetailModal({
   const liked = Boolean(postData?.hasLiked || postData?.isLiked);
   const saved = Boolean(postData?.saved || postData?.isSaved);
   const replyCount = replies.length || postData?.commentCount || postData?.commentsCount || 0;
+  const imageUrl = postData?.imageUrl || postData?.body?.match(/!\[[^\]]*\]\((https?:\/\/[^)]+)\)/)?.[1];
+  const displayBody = (postData?.body || '').replace(/!\[[^\]]*\]\(https?:\/\/[^)]+\)/g, '').trim();
   const topLevelReplies = replies.filter((reply) => !reply.parentReplyId);
 
   // Reddit/YouTube Style Nested Comment Component
@@ -385,6 +390,17 @@ export default function PostDetailModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {user && postData?.authorId && !isOwner && (
+              <button
+                type="button"
+                onClick={() => setReportingPost(true)}
+                className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                title="Report Post"
+                aria-label="Report Post"
+              >
+                <Flag className="w-4 h-4" />
+              </button>
+            )}
             {isOwner && (
               <button
                 type="button"
@@ -537,10 +553,10 @@ export default function PostDetailModal({
             )}
 
             {/* Post Image attachment if present */}
-            {postData?.imageUrl && (
+            {imageUrl && (
               <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 max-h-80 bg-slate-100 dark:bg-slate-800">
                 <img
-                  src={postData.imageUrl}
+                  src={imageUrl}
                   alt={postData.title || 'Post attachment'}
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -551,7 +567,7 @@ export default function PostDetailModal({
             )}
 
             <p className="text-sm text-[#38425b] dark:text-slate-300 leading-relaxed whitespace-pre-line">
-              {postData?.body}
+              {displayBody}
             </p>
 
             {postData?.tags?.length > 0 && (
@@ -746,6 +762,14 @@ export default function PostDetailModal({
             </div>
           </div>
         </div>
+      )}
+      {reportingPost && (
+        <ReportModal
+          targetType="post"
+          targetId={postData._id}
+          circleId={postData.circleId?._id || postData.circleId}
+          onClose={() => setReportingPost(false)}
+        />
       )}
     </div>
   );

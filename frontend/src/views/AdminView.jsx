@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiGet, apiPatch, apiDelete } from '../api/client';
 import PostDetailModal from '../components/discover/PostDetailModal';
+import ReportModerationCard from '../components/common/ReportModerationCard';
 import {
   ShieldAlert,
   Users,
@@ -106,8 +107,8 @@ export default function AdminView() {
         deleteTarget.type === 'post'
           ? `/admin/posts/${deleteTarget.id}`
           : deleteTarget.type === 'discussion'
-          ? `/discussions/${deleteTarget.id}`
-          : `/knowledge/${deleteTarget.id}`;
+          ? `/admin/discussions/${deleteTarget.id}`
+          : `/admin/knowledge/${deleteTarget.id}`;
 
       await apiDelete(endpoint, { reason: deleteReason });
 
@@ -132,7 +133,7 @@ export default function AdminView() {
       }
 
       setDeleteTarget(null);
-      alert('Content removed and reason notification sent to the author.');
+      alert('Content removed through moderation.');
     } catch (err) {
       alert(err.message || 'Failed to remove content');
     } finally {
@@ -140,18 +141,37 @@ export default function AdminView() {
     }
   };
 
-  const handleUpdateReport = async (reportId, status, actionTaken) => {
-    setActioningReportId(reportId);
+  const handleReportAction = async (report, { action, reason }) => {
+    setActioningReportId(report._id);
     try {
-      await apiPatch(`/admin/reports/${reportId}`, { status, actionTaken });
+      const body = action === 'remove_content'
+        ? { action, actionTaken: reason }
+        : { status: 'dismissed', actionTaken: reason };
+      await apiPatch(`/admin/reports/${report._id}`, body);
       setReports((prev) =>
-        prev.map((r) => (r._id === reportId ? { ...r, status, actionTaken } : r))
+        prev.map((r) => (
+          r._id === report._id
+            ? { ...r, status: action === 'remove_content' ? 'actioned' : 'dismissed', actionTaken: reason }
+            : r
+        ))
       );
       loadOverview();
+      return true;
     } catch (err) {
       alert(err.message || 'Failed to update report');
+      return false;
     } finally {
       setActioningReportId(null);
+    }
+  };
+
+  const handleOpenReportedPost = async (report) => {
+    try {
+      const response = await apiGet(`/posts/${report.targetId}`);
+      if (!response?.post) throw new Error('The original post is no longer available.');
+      setActiveInspectedPost(response.post);
+    } catch (err) {
+      alert(err.message || 'Unable to open the reported post.');
     }
   };
 
@@ -408,55 +428,15 @@ export default function AdminView() {
               ✓ All clear! No moderation reports in the queue.
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-900 border border-[#e9e9ed] dark:border-slate-800 rounded-2xl overflow-hidden shadow-2xs divide-y divide-[#f0f0f4] dark:divide-slate-800">
+            <div className="space-y-3">
               {reports.map((report) => (
-                <div key={report._id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">🚩</span>
-                      <span className="text-xs font-bold text-[#17213f] dark:text-white">{report.reason}</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-[#fff0ee] dark:bg-red-950/40 text-[#c65d59] dark:text-red-300 px-2 py-0.5 rounded">
-                        {report.targetType}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                          report.status === 'pending'
-                            ? 'bg-amber-100 text-amber-800'
-                            : report.status === 'actioned'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {report.status}
-                      </span>
-                    </div>
-                    {report.details && <p className="text-xs text-[#55607a] dark:text-slate-400">{report.details}</p>}
-                    <div className="text-[10.5px] text-[#8b92a1]">
-                      Reported by {report.reporterName || 'Member'} · {new Date(report.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    {report.status === 'pending' && (
-                      <>
-                        <button
-                          disabled={actioningReportId === report._id}
-                          onClick={() => handleUpdateReport(report._id, 'actioned', 'Resolved by moderation staff')}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white cursor-pointer disabled:opacity-50"
-                        >
-                          Resolve
-                        </button>
-                        <button
-                          disabled={actioningReportId === report._id}
-                          onClick={() => handleUpdateReport(report._id, 'dismissed', 'Dismissed as non-violating')}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-[#e9e9ed] dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
-                        >
-                          Dismiss
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
+                <ReportModerationCard
+                  key={report._id}
+                  report={report}
+                  busy={actioningReportId === report._id}
+                  onOpenPost={handleOpenReportedPost}
+                  onAction={handleReportAction}
+                />
               ))}
             </div>
           )}

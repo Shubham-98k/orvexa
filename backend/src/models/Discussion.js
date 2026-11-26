@@ -35,6 +35,13 @@ const discussionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Circle',
       default: null,
+      index: true,
+    },
+    visibility: {
+      type: String,
+      enum: ['public', 'circle'],
+      default: 'public',
+      index: true,
     },
     status: {
       type: String,

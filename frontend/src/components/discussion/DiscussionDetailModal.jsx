@@ -25,6 +25,7 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingContributionId, setDeletingContributionId] = useState(null);
   const [reportingContributionId, setReportingContributionId] = useState(null);
+  const [reportingDiscussion, setReportingDiscussion] = useState(false);
   const [replyingToContribution, setReplyingToContribution] = useState(null);
   const contributionInputRef = useRef(null);
   const [votes, setVotes] = useState(
@@ -289,9 +290,22 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
             </span>
             <span className="text-xs text-[#8b92a1]">● {discussionData.status || 'open'}</span>
           </div>
-          <button onClick={onClose} className="text-[#8b92a1] hover:text-[#17213f] p-1 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {user && !isSameUser(discussionData.authorId, user) && (
+              <button
+                type="button"
+                onClick={() => setReportingDiscussion(true)}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-red-600 hover:bg-red-50"
+                aria-label="Report discussion"
+              >
+                <Flag className="h-3 w-3" />
+                Report
+              </button>
+            )}
+            <button onClick={onClose} className="text-[#8b92a1] hover:text-[#17213f] p-1 rounded-lg" aria-label="Close discussion">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Origin Post Banner if converted from a post */}
@@ -409,7 +423,16 @@ export default function DiscussionDetailModal({ discussion, onClose, onOpenAiStu
         <ReportModal
           targetType="contribution"
           targetId={reportingContributionId}
+          circleId={getId(discussionData.circleId)}
           onClose={() => setReportingContributionId(null)}
+        />
+      )}
+      {reportingDiscussion && (
+        <ReportModal
+          targetType="discussion"
+          targetId={discussionData._id}
+          circleId={getId(discussionData.circleId)}
+          onClose={() => setReportingDiscussion(false)}
         />
       )}
     </div>

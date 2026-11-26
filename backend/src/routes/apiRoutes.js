@@ -8,6 +8,7 @@ import * as postCtrl from '../controllers/postController.js';
 import * as discCtrl from '../controllers/discussionController.js';
 import * as knowCtrl from '../controllers/knowledgeController.js';
 import * as circleCtrl from '../controllers/circleController.js';
+import * as circleCommunityCtrl from '../controllers/circleCommunityController.js';
 import * as msgCtrl from '../controllers/messageController.js';
 import * as notifCtrl from '../controllers/notificationController.js';
 import * as libCtrl from '../controllers/libraryController.js';
@@ -29,6 +30,7 @@ router.get('/feed', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimite
 // 2. PUBLIC READ-ONLY PREVIEW APIS (120s limit + rate limited)
 // ==========================================
 router.get('/public/session/preview-token', publicCtrl.getPreviewSession);
+router.get('/public/demo-accounts', publicApiRateLimiter, publicCtrl.getDemoAccounts);
 router.get('/public/discover', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicDiscover);
 router.get('/public/posts/:postId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicPostById);
 router.get('/public/discussions/:discussionId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, publicCtrl.getPublicDiscussionById);
@@ -60,7 +62,7 @@ router.get('/users', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateLi
 // 5. POSTS
 // ==========================================
 router.get('/posts', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, postCtrl.getPosts);
-router.get('/posts/:postId', requireAuth, postCtrl.getPostById);
+router.get('/posts/:postId', optionalAuth, requireGuestPreviewOrAuth, postCtrl.getPostById);
 router.post('/posts', requireAuth, postCtrl.createPost);
 router.post('/posts/:postId/like', requireAuth, postCtrl.toggleLikePost);
 router.get('/posts/:postId/replies', requireAuth, postCtrl.getPostReplies);
@@ -109,18 +111,64 @@ router.post('/knowledge/:articleId/save', requireAuth, knowCtrl.saveKnowledge);
 // ==========================================
 // 8. CIRCLES
 // ==========================================
+router.get('/circles/categories', optionalAuth, requireGuestPreviewOrAuth, circleCtrl.getCircleCategories);
+router.get('/circles/joined', requireAuth, circleCtrl.getJoinedCircles);
+router.get('/circles/invitations', requireAuth, circleCtrl.getMyInvitations);
 router.get('/circles', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, circleCtrl.getCircles);
-router.get('/circles/:circleId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, circleCtrl.getCircleById);
 router.post('/circles', requireAuth, circleCtrl.createCircle);
-router.post('/circles/:circleId/join', requireAuth, circleCtrl.toggleJoinCircle);
+router.get('/circles/:circleId', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, circleCtrl.getCircleById);
+router.patch('/circles/:circleId', requireAuth, circleCtrl.updateCircle);
+router.delete('/circles/:circleId', requireAuth, circleCtrl.deleteCircle);
+router.post('/circles/:circleId/join', requireAuth, circleCtrl.joinCircle);
+router.post('/circles/:circleId/invite-link', requireAuth, circleCtrl.createCircleInviteLink);
+router.delete('/circles/:circleId/invite-link', requireAuth, circleCtrl.revokeCircleInviteLink);
+router.post('/circles/invite-links/:token/redeem', requireAuth, circleCtrl.redeemCircleInviteLink);
+router.post('/circles/:circleId/leave', requireAuth, circleCtrl.leaveCircle);
+router.get('/circles/:circleId/members', optionalAuth, requireGuestPreviewOrAuth, circleCtrl.getCircleMembers);
+router.get('/circles/:circleId/membership-requests', requireAuth, circleCtrl.getMembershipRequests);
+router.post('/circles/:circleId/membership-requests/:requestId/approve', requireAuth, circleCtrl.approveMembershipRequest);
+router.post('/circles/:circleId/membership-requests/:requestId/reject', requireAuth, circleCtrl.rejectMembershipRequest);
+router.patch('/circles/:circleId/members/:userId/role', requireAuth, circleCtrl.changeMemberRole);
+router.delete('/circles/:circleId/members/:userId', requireAuth, circleCtrl.removeCircleMember);
+router.post('/circles/:circleId/members/:userId/ban', requireAuth, circleCtrl.banCircleMember);
+router.post('/circles/:circleId/members/:userId/unban', requireAuth, circleCtrl.unbanCircleMember);
+router.post('/circles/:circleId/members/:userId/mute', requireAuth, circleCtrl.muteCircleMember);
+router.post('/circles/:circleId/members/:userId/unmute', requireAuth, circleCtrl.unmuteCircleMember);
+router.post('/circles/:circleId/invitations', requireAuth, circleCtrl.createInvitation);
+router.get('/circles/:circleId/invitations', requireAuth, circleCtrl.getCircleInvitations);
+router.post('/circles/:circleId/invitations/:invitationId/accept', requireAuth, circleCtrl.acceptInvitation);
+router.post('/circles/:circleId/invitations/:invitationId/decline', requireAuth, circleCtrl.declineInvitation);
+router.delete('/circles/:circleId/invitations/:invitationId', requireAuth, circleCtrl.cancelInvitation);
+router.get('/circles/:circleId/home', optionalAuth, requireGuestPreviewOrAuth, circleCommunityCtrl.getCircleHome);
+router.get('/circles/:circleId/posts', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, circleCommunityCtrl.getCirclePosts);
+router.get('/circles/:circleId/discussions', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, circleCommunityCtrl.getCircleDiscussions);
+router.get('/circles/:circleId/knowledge', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, circleCommunityCtrl.getCircleKnowledge);
+router.get('/circles/:circleId/activity', optionalAuth, requireGuestPreviewOrAuth, circleCommunityCtrl.getCircleActivity);
+router.get('/circles/:circleId/analytics', requireAuth, circleCommunityCtrl.getCircleAnalytics);
+router.post('/circles/:circleId/announcements', requireAuth, circleCommunityCtrl.createAnnouncement);
+router.patch('/circles/:circleId/announcements/:announcementId', requireAuth, circleCommunityCtrl.updateAnnouncement);
+router.delete('/circles/:circleId/announcements/:announcementId', requireAuth, circleCommunityCtrl.deleteAnnouncement);
+router.post('/circles/:circleId/featured', requireAuth, circleCommunityCtrl.featureCircleContent);
+router.delete('/circles/:circleId/featured/:featuredId', requireAuth, circleCommunityCtrl.unfeatureCircleContent);
+router.patch('/circles/:circleId/featured/order', requireAuth, circleCommunityCtrl.reorderCircleFeaturedContent);
+router.get('/circles/:circleId/reports', requireAuth, circleCommunityCtrl.getCircleReports);
+router.post('/circles/:circleId/reports', requireAuth, circleCommunityCtrl.reportCircleContent);
+router.patch('/circles/:circleId/reports/:reportId', requireAuth, circleCommunityCtrl.resolveCircleReport);
+router.post('/circles/:circleId/moderation/content/:contentType/:contentId/delete', requireAuth, circleCommunityCtrl.moderateDeleteCircleContent);
 
 // ==========================================
 // 9. MESSAGES
 // ==========================================
 router.get('/conversations', requireAuth, msgCtrl.getConversations);
 router.post('/conversations', requireAuth, msgCtrl.startConversation);
+router.get('/conversations/:conversationId', requireAuth, msgCtrl.getConversation);
 router.get('/conversations/:conversationId/messages', requireAuth, msgCtrl.getMessages);
 router.post('/conversations/:conversationId/messages', requireAuth, msgCtrl.sendMessage);
+router.patch('/conversations/:conversationId/messages/:messageId', requireAuth, msgCtrl.updateMessage);
+router.delete('/conversations/:conversationId/messages/:messageId', requireAuth, msgCtrl.deleteMessage);
+router.post('/conversations/:conversationId/read', requireAuth, msgCtrl.markConversationRead);
+router.post('/conversations/:conversationId/mute', requireAuth, msgCtrl.muteConversation);
+router.post('/conversations/:conversationId/unmute', requireAuth, msgCtrl.unmuteConversation);
 
 // ==========================================
 // 10. NOTIFICATIONS & ACTIVITY
@@ -145,6 +193,8 @@ router.get('/search', optionalAuth, requireGuestPreviewOrAuth, publicSearchRateL
 // 13. ADMIN & MODERATION
 // ==========================================
 router.delete('/admin/posts/:postId', requireAuth, postCtrl.moderateDeletePost);
+router.delete('/admin/discussions/:discussionId', requireAuth, adminCtrl.moderateDeleteDiscussion);
+router.delete('/admin/knowledge/:articleId', requireAuth, adminCtrl.moderateDeleteKnowledgeArticle);
 router.get('/admin/overview', requireAuth, adminCtrl.getAdminOverview);
 router.get('/admin/users', requireAuth, adminCtrl.getAdminUsers);
 router.get('/admin/users/:userId/content', requireAuth, adminCtrl.getAdminUserContent);

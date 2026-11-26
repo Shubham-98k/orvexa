@@ -464,7 +464,68 @@ const runTests = async () => {
     console.log('✓ Test 12 Passed: Notification read updates are scoped to the logged-in recipient.');
   }
 
-  console.log('\nAll 12 automated unit/integration checks PASSED successfully!');
+  // Test 13: Demo credentials are opt-in and include live Circle staff roles
+  {
+    const { getDemoAccounts } = await import('../src/controllers/publicController.js');
+    const { Circle } = await import('../src/models/Circle.js');
+    const { CircleMembership } = await import('../src/models/CircleMembership.js');
+    const { User } = await import('../src/models/User.js');
+    const originalCircleFind = Circle.find;
+    const originalMembershipFind = CircleMembership.find;
+    const originalUserFind = User.find;
+    const previousEnabled = process.env.DEMO_ACCOUNTS_ENABLED;
+    const previousPassword = process.env.DEMO_ACCOUNT_PASSWORD;
+    const accountId = new mongoose.Types.ObjectId();
+    const circleId = new mongoose.Types.ObjectId();
+    Circle.find = () => ({
+      select() { return this; },
+      lean: async () => [{ _id: circleId, name: 'Test Circle', ownerId: accountId, members: [accountId], moderators: [] }],
+    });
+    CircleMembership.find = () => ({
+      select() { return this; },
+      lean: async () => [],
+    });
+    User.find = () => ({
+      select() {
+        return this;
+      },
+      lean: async () => [{
+        _id: accountId,
+        username: 'shubham',
+        email: 'shubham@orvexa.io',
+        platformRole: 'admin',
+      }],
+    });
+    process.env.DEMO_ACCOUNTS_ENABLED = 'true';
+    process.env.DEMO_ACCOUNT_PASSWORD = 'temporary-test-password';
+    const enabledResponse = { json(body) { this.body = body; return this; } };
+    try {
+      await getDemoAccounts({}, enabledResponse, (error) => { throw error; });
+      assert.equal(enabledResponse.body.accounts[0].password, 'temporary-test-password');
+      assert.equal(enabledResponse.body.accounts[0].platformRole, 'admin');
+      assert.deepEqual(enabledResponse.body.accounts[0].circleRoles, [
+        { circleName: 'Test Circle', role: 'owner' },
+      ]);
+
+      process.env.DEMO_ACCOUNTS_ENABLED = 'false';
+      const disabledResponse = { json(body) { this.body = body; return this; } };
+      await getDemoAccounts({}, disabledResponse, (error) => { throw error; });
+      assert.equal(disabledResponse.body.enabled, false);
+      assert.deepEqual(disabledResponse.body.accounts, []);
+    } finally {
+      Circle.find = originalCircleFind;
+      CircleMembership.find = originalMembershipFind;
+      User.find = originalUserFind;
+      if (previousEnabled === undefined) delete process.env.DEMO_ACCOUNTS_ENABLED;
+      else process.env.DEMO_ACCOUNTS_ENABLED = previousEnabled;
+      if (previousPassword === undefined) delete process.env.DEMO_ACCOUNT_PASSWORD;
+      else process.env.DEMO_ACCOUNT_PASSWORD = previousPassword;
+    }
+
+    console.log('✓ Test 13 Passed: Demo accounts are gated and include Circle roles.');
+  }
+
+  console.log('\nAll 13 automated unit/integration checks PASSED successfully!');
 };
 
 runTests().catch((err) => {
