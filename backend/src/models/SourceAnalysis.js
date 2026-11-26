@@ -51,6 +51,7 @@ const sourceAnalysisSchema = new mongoose.Schema(
     stats: {
       totalAnalyzed: { type: Number, default: 0 },
       uniqueContributors: { type: Number, default: 0 },
+      sampledCount: { type: Number, default: 0 },
       averageEngagement: { type: Number, default: 0 },
       topKeywords: [{ keyword: String, score: Number }],
     },

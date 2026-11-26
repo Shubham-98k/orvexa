@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { requireGuestPreviewOrAuth } from '../middleware/guestPreview.js';
-import { publicApiRateLimiter, publicSearchRateLimiter } from '../middleware/rateLimiter.js';
+import { createRateLimiter, publicApiRateLimiter, publicSearchRateLimiter } from '../middleware/rateLimiter.js';
 
 import * as authCtrl from '../controllers/authController.js';
 import * as postCtrl from '../controllers/postController.js';
@@ -20,6 +20,13 @@ import * as publicCtrl from '../controllers/publicController.js';
 import * as feedCtrl from '../controllers/feedController.js';
 
 const router = express.Router();
+const configuredAIRateLimit = Number.parseInt(process.env.AI_RATE_LIMIT_PER_MINUTE, 10);
+const aiGenerationRateLimiter = createRateLimiter({
+  windowMs: 60000,
+  max: Number.isSafeInteger(configuredAIRateLimit) && configuredAIRateLimit > 0 ? configuredAIRateLimit : 10,
+  endpointName: 'knowledge-ai',
+  message: 'Too many AI requests. Please wait a moment before trying again.',
+});
 
 // ==========================================
 // 1. UNIFIED FEED (For you, Trending, Following, Latest)
@@ -93,6 +100,7 @@ router.post('/discussions/:discussionId/knowledge-drafts', requireAuth, knowCtrl
 router.get('/knowledge', optionalAuth, requireGuestPreviewOrAuth, publicApiRateLimiter, knowCtrl.getKnowledgeArticles);
 router.get('/knowledge/drafts', requireAuth, knowCtrl.getUserDrafts);
 router.post('/knowledge/drafts', requireAuth, knowCtrl.createIndependentDraft);
+router.post('/knowledge/:articleId/edit-draft', requireAuth, knowCtrl.createArticleEditingDraft);
 router.get('/knowledge/drafts/:draftId', requireAuth, knowCtrl.getDraftById);
 router.patch('/knowledge/drafts/:draftId', requireAuth, knowCtrl.updateDraft);
 router.delete('/knowledge/drafts/:draftId', requireAuth, knowCtrl.discardDraft);
@@ -206,9 +214,13 @@ router.post('/reports', requireAuth, adminCtrl.submitReport);
 // ==========================================
 // 14. AI WRITING PARTNER
 // ==========================================
-router.get('/ai/status', optionalAuth, aiCtrl.getAIAvailability);
-router.post('/ai/knowledge/outline', requireAuth, aiCtrl.generateOutline);
-router.post('/ai/knowledge/draft-section', requireAuth, aiCtrl.draftSection);
+router.get('/ai/status', requireAuth, aiCtrl.getAIAvailability);
+router.post('/ai/knowledge/outline', requireAuth, aiGenerationRateLimiter, aiCtrl.generateOutline);
+router.post('/ai/knowledge/draft', requireAuth, aiGenerationRateLimiter, aiCtrl.draftArticle);
+router.post('/ai/knowledge/draft-section', requireAuth, aiGenerationRateLimiter, aiCtrl.draftSection);
+router.post('/ai/knowledge/rewrite', requireAuth, aiGenerationRateLimiter, aiCtrl.rewriteSelection);
+router.post('/ai/knowledge/assistant', requireAuth, aiGenerationRateLimiter, aiCtrl.assistantMessage);
+router.post('/ai/knowledge/review', requireAuth, aiGenerationRateLimiter, aiCtrl.reviewDraft);
 router.get('/admin/ai/usage', requireAuth, aiCtrl.getAIAdminStats);
 
 export default router;

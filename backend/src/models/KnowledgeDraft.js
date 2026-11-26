@@ -5,7 +5,7 @@ const draftBlockSchema = new mongoose.Schema(
     id: { type: String, required: true },
     type: {
       type: String,
-      enum: ['paragraph', 'heading1', 'heading2', 'heading3', 'quote', 'bulletList', 'numberedList', 'code', 'sourceCitation', 'callout'],
+      enum: ['paragraph', 'heading1', 'heading2', 'heading3', 'quote', 'bulletList', 'numberedList', 'code', 'sourceCitation', 'callout', 'image'],
       default: 'paragraph',
     },
     content: { type: String, default: '' },
@@ -41,12 +41,12 @@ const knowledgeDraftSchema = new mongoose.Schema(
     },
     visibility: {
       type: String,
-      enum: ['public', 'circle'],
+      enum: ['public', 'followers', 'circle'],
       default: 'public',
     },
     title: {
       type: String,
-      default: 'Untitled Draft',
+      default: '',
       trim: true,
     },
     subtitle: {
@@ -61,7 +61,7 @@ const knowledgeDraftSchema = new mongoose.Schema(
     },
     format: {
       type: String,
-      enum: ['guide', 'explainer', 'research', 'perspective', 'notes', 'other'],
+      enum: ['guide', 'explainer', 'research', 'perspective', 'notes', 'synthesis', 'freeform', 'other'],
       default: 'guide',
     },
     category: {
@@ -111,6 +111,10 @@ const knowledgeDraftSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SourceAnalysis',
       default: null,
+    },
+    useSourceContext: {
+      type: Boolean,
+      default: true,
     },
     sourceReferences: [{
       sourceType: {

@@ -1,7 +1,6 @@
-import React from 'react';
-import { Plus, Heading1, Heading2, AlignLeft, Quote, AlertCircle, Bookmark, Code } from 'lucide-react';
+import { Heading2, AlignLeft, Quote, AlertCircle, Bookmark, Code, Image } from 'lucide-react';
 
-export default function EditorToolbar({ onAddBlock }) {
+export default function EditorToolbar({ onAddBlock, onAddImage }) {
   const tools = [
     { type: 'paragraph', label: '+ Paragraph', icon: AlignLeft },
     { type: 'heading2', label: '+ Section Heading', icon: Heading2 },
@@ -25,6 +24,14 @@ export default function EditorToolbar({ onAddBlock }) {
           <span>{label}</span>
         </button>
       ))}
+      <button
+        type="button"
+        onClick={onAddImage}
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-700 text-[#4a5265] text-xs font-semibold border border-[#e9e9ed] shadow-2xs transition-colors cursor-pointer"
+      >
+        <Image className="w-3.5 h-3.5" />
+        <span>+ Image</span>
+      </button>
     </div>
   );
 }

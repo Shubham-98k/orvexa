@@ -10,7 +10,7 @@ const aiUsageLedgerSchema = new mongoose.Schema(
     },
     operationType: {
       type: String,
-      enum: ['outline', 'section_draft', 'rewrite', 'summarize', 'key_takeaways'],
+      enum: ['outline', 'draft', 'section', 'rewrite', 'assistant', 'review'],
       required: true,
     },
     draftId: {
@@ -41,7 +41,7 @@ const aiUsageLedgerSchema = new mongoose.Schema(
     },
     estimatedCostInr: {
       type: Number,
-      default: 0,
+      default: null,
     },
     durationMs: {
       type: Number,

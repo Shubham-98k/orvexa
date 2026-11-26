@@ -1,8 +1,11 @@
+import mongoose from 'mongoose';
 import { Discussion } from '../models/Discussion.js';
 import { DiscussionContribution } from '../models/DiscussionContribution.js';
 import { Post } from '../models/Post.js';
 import { PostReply } from '../models/PostReply.js';
 import { SourceSnapshot } from '../models/SourceSnapshot.js';
+
+const MAX_SNAPSHOT_ITEMS = 300;
 
 /**
  * Creates a stable, reproducible SourceSnapshot from a Discussion or Post.
@@ -15,12 +18,18 @@ export async function createSourceSnapshot({
   snapshotBoundary = new Date(),
 }) {
   const includeReplies = selectionCriteria.includeReplies !== false;
+  const sourceObjectId = new mongoose.Types.ObjectId(sourceId);
 
   let sourceRecord = null;
   let sourceTitle = '';
   let sourceAuthorId = null;
   let sourceAuthorName = '';
   const rawItems = [];
+  let totalEligibleSources = 0;
+  const addItem = (item) => {
+    totalEligibleSources += 1;
+    if (rawItems.length < MAX_SNAPSHOT_ITEMS) rawItems.push(item);
+  };
 
   if (sourceType === 'discussion') {
     sourceRecord = await Discussion.findById(sourceId);
@@ -42,7 +51,7 @@ export async function createSourceSnapshot({
       .cursor();
 
     for await (const contribution of cursor) {
-      rawItems.push({
+      addItem({
         sourceType: 'discussionContribution',
         sourceId: contribution._id,
         parentSourceId: contribution.parentContributionId || null,
@@ -51,7 +60,7 @@ export async function createSourceSnapshot({
         authorInitials: contribution.authorInitials,
         authorColor: contribution.authorColor,
         contentPreview: contribution.body?.slice(0, 200) || '',
-        fullBody: contribution.body || '',
+        fullBody: (contribution.body || '').slice(0, 1200),
         voteCount: contribution.votes || (Array.isArray(contribution.voters) ? contribution.voters.length : 0),
         createdAt: contribution.createdAt,
       });
@@ -65,7 +74,7 @@ export async function createSourceSnapshot({
     sourceAuthorName = sourceRecord.authorName;
 
     // The post itself is the foundational primary source
-    rawItems.push({
+    addItem({
       sourceType: 'post',
       sourceId: sourceRecord._id,
       parentSourceId: null,
@@ -74,7 +83,7 @@ export async function createSourceSnapshot({
       authorInitials: sourceRecord.authorInitials,
       authorColor: sourceRecord.authorColor,
       contentPreview: sourceRecord.body?.slice(0, 200) || '',
-      fullBody: sourceRecord.body || '',
+      fullBody: (sourceRecord.body || '').slice(0, 1200),
       voteCount: sourceRecord.likeCount || 0,
       createdAt: sourceRecord.createdAt,
       selectionReason: 'original_post',
@@ -91,7 +100,7 @@ export async function createSourceSnapshot({
         .cursor();
 
       for await (const reply of cursor) {
-        rawItems.push({
+        addItem({
           sourceType: 'postReply',
           sourceId: reply._id,
           parentSourceId: reply.parentReplyId || null,
@@ -100,7 +109,7 @@ export async function createSourceSnapshot({
           authorInitials: reply.authorInitials,
           authorColor: reply.authorColor,
           contentPreview: reply.body?.slice(0, 200) || '',
-          fullBody: reply.body || '',
+          fullBody: (reply.body || '').slice(0, 1200),
           voteCount: 0,
           createdAt: reply.createdAt,
         });
@@ -110,12 +119,39 @@ export async function createSourceSnapshot({
     throw new Error(`Unsupported sourceType: ${sourceType}`);
   }
 
-  // Calculate unique contributors
-  const uniqueContributorIds = new Set(
-    rawItems.map((item) => (item.authorId ? item.authorId.toString() : item.authorName))
-  );
+  let uniqueContributorCount = 0;
+  if (sourceType === 'discussion') {
+    const [contributorCount] = await DiscussionContribution.aggregate([
+      {
+        $match: {
+          discussionId: sourceObjectId,
+          status: 'active',
+          createdAt: { $lte: snapshotBoundary },
+        },
+      },
+      { $group: { _id: '$authorId' } },
+      { $count: 'count' },
+    ]);
+    uniqueContributorCount = contributorCount?.count || 0;
+  } else {
+    const [replyContributorCount] = includeReplies
+      ? await PostReply.aggregate([
+        { $match: { postId: sourceObjectId, createdAt: { $lte: snapshotBoundary } } },
+        { $group: { _id: '$authorId' } },
+        { $count: 'count' },
+      ])
+      : [];
+    const authorHasReplied = includeReplies
+      ? await PostReply.exists({
+        postId: sourceObjectId,
+        authorId: sourceRecord.authorId,
+        createdAt: { $lte: snapshotBoundary },
+      })
+      : false;
+    uniqueContributorCount = (replyContributorCount?.count || 0) + (authorHasReplied ? 0 : 1);
+  }
 
-  // Build manifest records (selecting diverse, bounded samples)
+  // Store a bounded chronological sample while keeping exact source counts.
   const manifestItems = rawItems.map((item, idx) => ({
     sourceType: item.sourceType,
     sourceId: item.sourceId,
@@ -125,6 +161,7 @@ export async function createSourceSnapshot({
     authorInitials: item.authorInitials,
     authorColor: item.authorColor,
     contentPreview: item.contentPreview,
+    sourceText: item.fullBody || item.contentPreview || '',
     voteCount: item.voteCount,
     selectionReason: item.selectionReason || (item.voteCount > 5 ? 'high_engagement' : idx < 20 ? 'representative' : 'chronological_sample'),
     createdAt: item.createdAt,
@@ -134,6 +171,7 @@ export async function createSourceSnapshot({
     sourceType,
     sourceId,
     sourceTitle,
+    sourceText: (sourceRecord.body || '').slice(0, 1200),
     sourceAuthorId,
     sourceAuthorName,
     snapshotBoundaryTime: snapshotBoundary,
@@ -142,8 +180,8 @@ export async function createSourceSnapshot({
       focus: selectionCriteria.focus || 'all_themes',
       dateRange: selectionCriteria.dateRange || null,
     },
-    totalEligibleSources: rawItems.length,
-    uniqueContributors: uniqueContributorIds.size,
+    totalEligibleSources,
+    uniqueContributors: uniqueContributorCount,
     selectedCount: manifestItems.length,
     sourceManifest: manifestItems,
     status: 'active',

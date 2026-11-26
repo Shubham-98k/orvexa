@@ -97,21 +97,26 @@ function computeTfIdf(documents) {
 /**
  * Runs the Zero-Cost Analysis Pipeline on a SourceSnapshot.
  */
-export async function runZeroCostAnalysis({ snapshot, rawItems = [], sourceTitle = '' }) {
+export async function runZeroCostAnalysis({ snapshot, rawItems = [] }) {
   // Use manifest if rawItems not passed in
   const items = rawItems.length > 0 ? rawItems : (snapshot.sourceManifest || []);
 
-  // Stage 1: Exact Statistics
-  const totalAnalyzed = items.length;
-  const uniqueContributors = new Set(
+  // Counts are exact; text-derived keyword metrics are based on the bounded sample.
+  const sampledCount = items.length;
+  const totalAnalyzed = Number.isFinite(snapshot.totalEligibleSources)
+    ? snapshot.totalEligibleSources
+    : items.length;
+  const uniqueContributors = Number.isFinite(snapshot.uniqueContributors)
+    ? snapshot.uniqueContributors
+    : new Set(
     items.map((item) => (item.authorId ? item.authorId.toString() : item.authorName))
-  ).size;
+    ).size;
 
   let totalEngagement = 0;
   for (const it of items) {
     totalEngagement += it.voteCount || 0;
   }
-  const averageEngagement = totalAnalyzed > 0 ? Math.round((totalEngagement / totalAnalyzed) * 10) / 10 : 0;
+  const averageEngagement = sampledCount > 0 ? Math.round((totalEngagement / sampledCount) * 10) / 10 : 0;
 
   // Stage 2 & 3: Text Preparation & Theme Discovery
   const { docTerms, topKeywords } = computeTfIdf(items);
@@ -124,13 +129,13 @@ export async function runZeroCostAnalysis({ snapshot, rawItems = [], sourceTitle
     // Fallback theme for empty/minimal discussions
     themes.push({
       themeId: 'theme-1',
-      label: 'Core Topic Exploration',
-      keywords: [sourceTitle.toLowerCase().slice(0, 20)],
-      contributionCount: totalAnalyzed,
+      label: 'No recurring keywords detected',
+      keywords: [],
+      contributionCount: sampledCount,
       contributorCount: uniqueContributors,
       representativeSourceIds: items.slice(0, 5).map((i) => i.sourceId),
       contrastingSourceIds: [],
-      summary: `Primary community perspectives discussing "${sourceTitle}".`,
+      summary: 'The bounded source sample did not contain enough repeated terms for keyword analysis.',
     });
   } else {
     primaryKeywords.forEach((kw, idx) => {
@@ -139,70 +144,37 @@ export async function runZeroCostAnalysis({ snapshot, rawItems = [], sourceTitle
       const sourceIds = matchingItems.map(({ item }) => item.sourceId);
       const contributors = new Set(matchingItems.map(({ item }) => (item.authorId ? item.authorId.toString() : item.authorName)));
 
-      // Contrasting candidates: items that mention the keyword but have words like "however", "risk", "disagree", "alternatively"
-      const contrasting = matchingItems.filter(({ item }) => {
-        const text = (item.fullBody || item.contentPreview || '').toLowerCase();
-        return text.includes('however') || text.includes('disagree') || text.includes('problem') || text.includes('risk') || text.includes('issue');
-      });
-
-      // Capitalize label nicely
+      // Keyword clusters are descriptive metadata, not editorial conclusions.
       const capitalizedLabel = kw.keyword.charAt(0).toUpperCase() + kw.keyword.slice(1);
 
       themes.push({
         themeId: `theme-${idx + 1}`,
-        label: `${capitalizedLabel} Insights & Practices`,
+        label: capitalizedLabel,
         keywords: [kw.keyword],
         contributionCount: matchingItems.length || 1,
         contributorCount: contributors.size || 1,
         representativeSourceIds: sourceIds.slice(0, 5),
-        contrastingSourceIds: contrasting.slice(0, 2).map((c) => c.item.sourceId),
-        summary: `Perspectives centered on ${kw.keyword} and related community patterns.`,
+        contrastingSourceIds: [],
+        summary: `This keyword appears in ${matchingItems.length} sampled source items.`,
       });
     });
   }
-
-  // Stage 6: Generate Algorithmic Outline (Zero AI)
-  const outline = [
-    {
-      sectionId: 'sec-intro',
-      heading: '1. Problem Overview & Community Context',
-      notes: `Introduction defining the core question addressed in "${sourceTitle}".`,
-      suggestedFocus: 'Define the core motivation and scope.',
-      mappedSourceIds: items.slice(0, 3).map((i) => i.sourceId),
-      order: 1,
-    },
-    ...themes.map((theme, idx) => ({
-      sectionId: `sec-theme-${idx + 1}`,
-      heading: `${idx + 2}. ${theme.label}`,
-      notes: theme.summary,
-      suggestedFocus: `Synthesize findings supported by ${theme.contributionCount} community contributions.`,
-      mappedSourceIds: theme.representativeSourceIds,
-      order: idx + 2,
-    })),
-    {
-      sectionId: `sec-summary`,
-      heading: `${themes.length + 2}. Actionable Framework & Key Takeaways`,
-      notes: 'Consolidated guidelines, trade-offs, and practical conclusions.',
-      suggestedFocus: 'Distill takeaways into reusable instructions.',
-      mappedSourceIds: items.slice(-3).map((i) => i.sourceId),
-      order: themes.length + 2,
-    },
-  ];
 
   // Stage 7: Persist SourceAnalysis
   const analysis = await SourceAnalysis.create({
     snapshotId: snapshot._id,
     sourceType: snapshot.sourceType,
     sourceId: snapshot.sourceId,
-    algorithmVersion: 'v1.0-tfidf-zero-cost',
+    algorithmVersion: 'v1.1-bounded-tfidf-metadata',
     stats: {
       totalAnalyzed,
       uniqueContributors,
+      sampledCount,
       averageEngagement,
       topKeywords,
     },
     themes,
-    suggestedOutline: outline,
+    suggestedOutline: [],
     status: 'ready',
   });
 

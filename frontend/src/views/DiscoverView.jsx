@@ -1,24 +1,18 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useOutletContext, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useOutletContext, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   Sparkles,
   Users,
   Compass,
   Bell,
-  Moon,
-  Sun,
-  Flame,
   Zap,
   BookOpen,
   MessageSquare,
   Layers,
-  ChevronLeft,
-  ChevronRight,
   Plus,
   LayoutGrid,
   List,
-  SlidersHorizontal,
 } from 'lucide-react';
 import PostCard from '../components/discover/PostCard';
 import DiscussionCard from '../components/discover/DiscussionCard';
@@ -75,14 +69,13 @@ const FALLBACK_TRENDING = [
 ];
 
 export default function DiscoverView() {
-  const { onOpenCreate, showToast, darkMode, toggleDarkMode } = useOutletContext?.() || {
+  const { onOpenCreate, showToast } = useOutletContext?.() || {
     onOpenCreate: () => {},
     showToast: () => {},
-    darkMode: false,
-    toggleDarkMode: () => {},
   };
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState('For you'); // 'For you' | 'Trending' | 'Following' | 'Latest'
   const [contentTypeFilter, setContentTypeFilter] = useState('All'); // 'All' | 'Posts' | 'Discussions' | 'Knowledge'
@@ -98,6 +91,30 @@ export default function DiscoverView() {
   const [focusPostReply, setFocusPostReply] = useState(false);
   const [trendingDiscussions, setTrendingDiscussions] = useState([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const postId = searchParams.get('postId');
+    if (!postId) return undefined;
+    let active = true;
+    apiGet(`/posts/${postId}`)
+      .then((response) => {
+        if (!active) return;
+        const post = response?.post || response;
+        setActivePost(post);
+        setFocusPostReply(false);
+        setSearchParams((current) => {
+          const next = new URLSearchParams(current);
+          next.delete('postId');
+          return next;
+        }, { replace: true });
+      })
+      .catch((err) => {
+        if (active) setError(err.message || 'Unable to open the original Post.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     let isMounted = true;
@@ -234,6 +251,12 @@ export default function DiscoverView() {
 
   return (
     <div className="space-y-7 font-sans pb-24">
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="font-bold underline">Dismiss</button>
+        </div>
+      )}
       {/* 1. Header with Search & Icons (as shown in reference) */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-2">
         <div className="w-full sm:max-w-2xl relative">
@@ -580,7 +603,7 @@ export default function DiscoverView() {
         type="button"
         onClick={() => onOpenCreate && onOpenCreate('Post')}
         className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-tr from-[#e66c68] to-[#f08573] text-white shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40 cursor-pointer"
-        title="Create new post, discussion, or knowledge"
+        title="Create a post or discussion"
       >
         <Plus className="w-7 h-7 stroke-[2.5]" />
       </button>

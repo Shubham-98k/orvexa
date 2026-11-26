@@ -202,6 +202,10 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (contentType === 'Knowledge article') {
+      setError('Create or edit Knowledge articles in Knowledge Studio.');
+      return;
+    }
     const { fullBody, primaryImageUrl } = serializeContent();
 
     if (!fullBody && contentType !== 'Circle') {
@@ -243,22 +247,6 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
           ...(defaultCircleId ? { circleId: defaultCircleId, visibility: 'circle' } : {}),
         });
         if (onItemCreated) onItemCreated(res.discussion, 'Discussion');
-      } else if (contentType === 'Knowledge article') {
-        if (!title.trim()) {
-          setError('Knowledge articles require a title.');
-          setSubmitting(false);
-          return;
-        }
-        const res = await apiPost('/knowledge', {
-          title: title.trim(),
-          summary: fullBody.slice(0, 160).replace(/^[#>\s-]+/, ''),
-          content: fullBody,
-          coverImage: primaryImageUrl || undefined,
-          category,
-          readTime: '5 min read',
-          ...(defaultCircleId ? { circleId: defaultCircleId, visibility: 'circle' } : {}),
-        });
-        if (onItemCreated) onItemCreated(res.article, 'Knowledge');
       } else if (contentType === 'Circle') {
         if (!title.trim()) {
           setError('Circle name is required.');
@@ -356,11 +344,10 @@ export default function CreateModal({ isOpen, onClose, onItemCreated, defaultTyp
             <label className="block text-xs font-bold text-[#17213f] dark:text-slate-200 mb-1.5">
               Content Type
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
                 { type: 'Post', label: 'Post', sub: 'Everyday update' },
                 { type: 'Discussion', label: 'Discussion', sub: 'Collaborative thread' },
-                { type: 'Knowledge article', label: 'Knowledge', sub: 'Reusable guide' },
                 { type: 'Circle', label: 'Circle', sub: 'Community' },
               ].map((opt) => (
                 <button

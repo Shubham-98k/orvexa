@@ -24,6 +24,7 @@ const manifestItemSchema = new mongoose.Schema(
     authorInitials: String,
     authorColor: String,
     contentPreview: String,
+    sourceText: String,
     voteCount: {
       type: Number,
       default: 0,
@@ -52,6 +53,7 @@ const sourceSnapshotSchema = new mongoose.Schema(
       index: true,
     },
     sourceTitle: String,
+    sourceText: String,
     sourceAuthorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

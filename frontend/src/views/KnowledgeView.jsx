@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, PenLine, BookOpen, Layers, Filter, Sparkles, ChevronRight, Trash2, X, Plus } from 'lucide-react';
+import { Search, PenLine, BookOpen, Layers, ChevronRight, Trash2, X, Plus } from 'lucide-react';
 import KnowledgeCard from '../components/discover/KnowledgeCard';
 import { apiGet, apiPost, apiDelete } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
-const FORMATS = ['All', 'Guide', 'Explainer', 'Research', 'Perspective', 'Notes'];
+const FORMATS = ['All', 'Guide', 'Explainer', 'Research', 'Perspective', 'Synthesis', 'Freeform', 'Notes'];
 const CATEGORIES = ['All topics', 'Thinking', 'Culture', 'Technology', 'UX', 'Engineering', 'Learning', 'Work & Culture'];
 const SORTS = [
   { value: 'newest', label: 'Newest first' },
@@ -90,7 +90,7 @@ export default function KnowledgeView() {
 
   const handleStartNewArticle = async () => {
     try {
-      const res = await apiPost('/knowledge/drafts', { title: 'Untitled Knowledge Article' });
+      const res = await apiPost('/knowledge/drafts', { title: '' });
       if (res?.draft?._id) {
         navigate(`/knowledge/studio/${res.draft._id}`);
       } else {

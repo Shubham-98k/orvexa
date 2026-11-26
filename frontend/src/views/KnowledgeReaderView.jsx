@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Bookmark, Share2, ThumbsUp, Database, ExternalLink, Clock, Calendar, Check, ListTree, UserPlus, UserCheck, Trash2, Edit3, Flag } from 'lucide-react';
+import { ArrowLeft, Bookmark, Share2, ThumbsUp, Database, ExternalLink, Clock, Calendar, ListTree, UserPlus, UserCheck, Trash2, Edit3, Flag } from 'lucide-react';
 import Avatar from '../components/common/Avatar';
 import PostDetailModal from '../components/discover/PostDetailModal';
 import ReportModal from '../components/common/ReportModal';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../api/client';
+import { apiGet, apiPost, apiDelete } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
 const splitHeadingBlock = (content) => {
@@ -32,9 +32,6 @@ export default function KnowledgeReaderView() {
   const [provenanceOpen, setProvenanceOpen] = useState(false);
 
   // Edit & Source Post modal state
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editSubtitle, setEditSubtitle] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [activePost, setActivePost] = useState(null);
   const [reportingArticle, setReportingArticle] = useState(false);
@@ -129,6 +126,22 @@ export default function KnowledgeReaderView() {
     }
   };
 
+  const handleEditArticle = async () => {
+    try {
+      setSavingEdit(true);
+      const response = await apiPost(`/knowledge/${articleId}/edit-draft`, {});
+      if (response?.draft?._id) {
+        navigate(`/knowledge/studio/${response.draft._id}`);
+      } else {
+        throw new Error('Unable to open the article in Knowledge Studio.');
+      }
+    } catch (error) {
+      alert(error.message || 'Unable to open Knowledge Studio');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleShare = () => {
     navigator.clipboard?.writeText(window.location.href);
     showToast?.('Link copied to clipboard!');
@@ -150,26 +163,6 @@ export default function KnowledgeReaderView() {
       }
     } catch (err) {
       alert(err.message || 'Unable to open original post');
-    }
-  };
-
-  const handleSaveEditArticle = async () => {
-    if (!editTitle.trim()) return;
-    try {
-      setSavingEdit(true);
-      const res = await apiPatch(`/knowledge/${articleId}`, {
-        title: editTitle.trim(),
-        summary: editSubtitle.trim(),
-      });
-      if (res?.article) {
-        setArticle((prev) => ({ ...prev, ...res.article }));
-        setIsEditing(false);
-        showToast?.('Article updated');
-      }
-    } catch (err) {
-      alert(err.message || 'Failed to update article');
-    } finally {
-      setSavingEdit(false);
     }
   };
 
@@ -216,15 +209,13 @@ export default function KnowledgeReaderView() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => {
-                  setEditTitle(article.title || '');
-                  setEditSubtitle(article.subtitle || article.summary || '');
-                  setIsEditing((prev) => !prev);
-                }}
+                onClick={handleEditArticle}
+                disabled={savingEdit}
                 className="p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer transition-colors"
-                title="Edit Article"
+                title="Edit article in Knowledge Studio"
+                aria-label="Edit article in Knowledge Studio"
               >
-                <Edit3 className="w-3.5 h-3.5" />
+                {savingEdit ? <span className="px-1 text-[10px]">...</span> : <Edit3 className="w-3.5 h-3.5" />}
               </button>
               <button
                 type="button"
@@ -285,54 +276,14 @@ export default function KnowledgeReaderView() {
           </span>
         </div>
 
-        {isEditing ? (
-          <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 space-y-3">
-            <div className="text-xs font-bold text-amber-700 dark:text-amber-300">Edit Article Details</div>
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              placeholder="Article title..."
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
-            />
-            <input
-              type="text"
-              value={editSubtitle}
-              onChange={(e) => setEditSubtitle(e.target.value)}
-              placeholder="Summary / Subtitle..."
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={savingEdit || !editTitle.trim()}
-                onClick={handleSaveEditArticle}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#3f5ce8] hover:bg-[#324ecc] text-white cursor-pointer disabled:opacity-50 flex items-center gap-1"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>{savingEdit ? 'Saving...' : 'Save Changes'}</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <h1 className="text-2xl sm:text-4xl font-black text-[#17213f] dark:text-white leading-tight">
-              {article.title}
-            </h1>
+        <h1 className="text-2xl sm:text-4xl font-black text-[#17213f] dark:text-white leading-tight">
+          {article.title}
+        </h1>
 
-            {article.subtitle && (
-              <p className="text-sm sm:text-base text-[#616a7d] dark:text-slate-300 font-medium leading-relaxed">
-                {article.subtitle}
-              </p>
-            )}
-          </>
+        {article.subtitle && (
+          <p className="text-sm sm:text-base text-[#616a7d] dark:text-slate-300 font-medium leading-relaxed">
+            {article.subtitle}
+          </p>
         )}
 
         {/* Author Bio Row */}
@@ -552,6 +503,16 @@ export default function KnowledgeReaderView() {
                     <pre className="p-3.5 rounded-xl bg-[#1c2333] text-[#eef2f9] font-mono text-xs overflow-x-auto">
                       {b.content}
                     </pre>
+                  )}
+                  {b.type === 'image' && b.content && (
+                    <figure className="space-y-2 py-2">
+                      <img src={b.content} alt={b.data?.caption || ''} className="max-h-[36rem] w-full rounded-2xl object-contain" />
+                      {b.data?.caption && (
+                        <figcaption className="text-center text-xs text-[#737b8d] dark:text-slate-400">
+                          {b.data.caption}
+                        </figcaption>
+                      )}
+                    </figure>
                   )}
                 </div>
               );

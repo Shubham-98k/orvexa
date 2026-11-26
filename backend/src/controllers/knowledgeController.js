@@ -1,4 +1,4 @@
-import { KnowledgeArticle } from '../models/KnowledgeArticle.js';
+import { KnowledgeArticle, parseKnowledgeContentToBlocks } from '../models/KnowledgeArticle.js';
 import { KnowledgeDraft } from '../models/KnowledgeDraft.js';
 import { KnowledgeVersion } from '../models/KnowledgeVersion.js';
 import { SourceSnapshot } from '../models/SourceSnapshot.js';
@@ -16,6 +16,19 @@ import { authorizeCircleContent, getCircleContentFilter, withCircleContentAccess
 
 const findAccessibleKnowledge = async (articleId, userId) =>
   KnowledgeArticle.findOne(await withCircleContentAccess({ _id: articleId }, userId));
+const MAX_SOURCE_MANIFEST_ITEMS = 300;
+const presentSourceSnapshot = (snapshot) => {
+  if (!snapshot) return null;
+  const data = typeof snapshot.toObject === 'function' ? snapshot.toObject() : snapshot;
+  const safeSnapshot = { ...data };
+  delete safeSnapshot.sourceText;
+  safeSnapshot.sourceManifest = (data.sourceManifest || []).map((item) => {
+    const safeItem = { ...(typeof item.toObject === 'function' ? item.toObject() : item) };
+    delete safeItem.sourceText;
+    return safeItem;
+  });
+  return safeSnapshot;
+};
 
 // ==========================================
 // 1. PUBLISHED KNOWLEDGE BROWSING & DETAIL
@@ -336,30 +349,15 @@ export const createIndependentDraft = async (req, res, next) => {
     });
     if (circleAccess.error) return res.status(circleAccess.status).json({ error: circleAccess.error });
 
-    const initialBlocks = [
-      {
-        id: 'block-1',
-        type: 'heading1',
-        content: title || 'Introduction',
-        data: {},
-      },
-      {
-        id: 'block-2',
-        type: 'paragraph',
-        content: 'Start writing your guide or resource here. Add structured sections, citations, or quotes.',
-        data: {},
-      },
-    ];
-
     const draft = await KnowledgeDraft.create({
       authorId: req.user._id,
       circleId: circleAccess.circle?._id || null,
       visibility: circleAccess.visibility,
-      title: title || 'Untitled Knowledge Draft',
+      title: typeof title === 'string' ? title.trim() : '',
       format,
       category,
       topics,
-      body: initialBlocks,
+      body: [],
       origin: { type: 'independent' },
       status: 'active',
       versionNumber: 1,
@@ -387,48 +385,25 @@ export const createDraftFromDiscussion = async (req, res, next) => {
       selectionCriteria: { focus, ...selectionCriteria },
     });
 
-    // 2. Run Zero-Cost Analysis pipeline (TF-IDF themes & algorithmic outline)
+    // Keep measurable source analysis separate from the author's editable outline.
     const analysis = await runZeroCostAnalysis({
       snapshot,
       rawItems,
-      sourceTitle: sourceRecord.title,
     });
 
-    // 3. Transform outline sections into initial draft blocks
-    const initialBlocks = [
-      {
-        id: 'block-intro',
-        type: 'heading1',
-        content: sourceRecord.title,
-        data: {},
-      },
-      {
-        id: 'block-summary',
-        type: 'paragraph',
-        content: `A structured synthesis based on community discussion "${sourceRecord.title}", incorporating insights from ${snapshot.uniqueContributors} contributors.`,
-        data: {},
-      },
-      ...analysis.themes.map((theme, idx) => ({
-        id: `block-theme-${idx + 1}`,
-        type: 'heading2',
-        content: theme.label,
-        data: {},
-      })),
-    ];
-
-    // 4. Create draft linked to snapshot & analysis
+    // Create a blank editor with its provenance attached; no generated copy is implied.
     const draft = await KnowledgeDraft.create({
       authorId: req.user._id,
       circleId: sourceDiscussion.visibility === 'circle' ? sourceDiscussion.circleId : null,
       visibility: sourceDiscussion.visibility === 'circle' ? 'circle' : 'public',
-      title: `${sourceRecord.title}: Synthesized Guide`,
-      subtitle: `Community insights and practices from ${snapshot.uniqueContributors} contributors`,
-      summary: `Synthesized from discussion with ${snapshot.totalEligibleSources} contributions.`,
-      format: 'guide',
+      title: sourceRecord.title,
+      subtitle: '',
+      summary: '',
+      format: 'synthesis',
       category: sourceRecord.category || 'Thinking',
       topics: sourceRecord.tags || [],
-      body: initialBlocks,
-      outline: analysis.suggestedOutline,
+      body: [],
+      outline: [],
       origin: {
         type: 'discussion',
         discussionId: sourceRecord._id,
@@ -440,7 +415,7 @@ export const createDraftFromDiscussion = async (req, res, next) => {
       versionNumber: 1,
     });
 
-    res.status(201).json({ draft, snapshot, analysis });
+    res.status(201).json({ draft, snapshot: presentSourceSnapshot(snapshot), analysis });
   } catch (err) {
     next(err);
   }
@@ -466,50 +441,21 @@ export const createDraftFromPost = async (req, res, next) => {
     const analysis = await runZeroCostAnalysis({
       snapshot,
       rawItems,
-      sourceTitle: sourceRecord.title || sourceRecord.body.slice(0, 60),
     });
 
-    // 3. Seed initial blocks from Post content
     const title = sourceRecord.title || `${sourceRecord.body.slice(0, 50)}...`;
-    const initialBlocks = [
-      {
-        id: 'block-heading',
-        type: 'heading1',
-        content: title,
-        data: {},
-      },
-      {
-        id: 'block-post-body',
-        type: 'quote',
-        content: sourceRecord.body,
-        data: { sourceLabel: `Original Post by ${sourceRecord.authorName}` },
-      },
-      {
-        id: 'block-analysis-section',
-        type: 'heading2',
-        content: 'Core Observations & Context',
-        data: {},
-      },
-      {
-        id: 'block-body-1',
-        type: 'paragraph',
-        content: 'Expanding on the core premise with practical implementation steps.',
-        data: {},
-      },
-    ];
-
-    // 4. Create draft
     const draft = await KnowledgeDraft.create({
       authorId: req.user._id,
       circleId: sourcePost.visibility === 'circle' ? sourcePost.circleId : null,
-      visibility: sourcePost.visibility === 'circle' ? 'circle' : 'public',
+      visibility: sourcePost.visibility,
       title,
-      summary: sourceRecord.body.slice(0, 160),
-      format: 'guide',
+      subtitle: '',
+      summary: '',
+      format: includeReplies && snapshot.totalEligibleSources > 1 ? 'synthesis' : 'freeform',
       category: sourceRecord.circleName ? 'Community' : 'Thinking',
       topics: sourceRecord.tags || [],
-      body: initialBlocks,
-      outline: analysis.suggestedOutline,
+      body: [],
+      outline: [],
       origin: {
         type: 'post',
         postId: sourceRecord._id,
@@ -521,7 +467,7 @@ export const createDraftFromPost = async (req, res, next) => {
       versionNumber: 1,
     });
 
-    res.status(201).json({ draft, snapshot, analysis });
+    res.status(201).json({ draft, snapshot: presentSourceSnapshot(snapshot), analysis });
   } catch (err) {
     next(err);
   }
@@ -542,6 +488,60 @@ export const getUserDrafts = async (req, res, next) => {
   }
 };
 
+export const createArticleEditingDraft = async (req, res, next) => {
+  try {
+    const article = await KnowledgeArticle.findById(req.params.articleId);
+    if (!article || article.status !== 'published') {
+      return res.status(404).json({ error: 'Published Knowledge article not found' });
+    }
+    if (String(article.authorId) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the article author can edit it' });
+    }
+
+    let draft = await KnowledgeDraft.findOne({
+      authorId: req.user._id,
+      publishedArticleId: article._id,
+      status: { $ne: 'discarded' },
+    });
+
+    if (!draft) {
+      const latestVersion = await KnowledgeVersion.findOne({ articleId: article._id })
+        .sort({ versionNumber: -1 })
+        .lean();
+      const body = Array.isArray(article.body) && article.body.length
+        ? article.body.map((block) => (typeof block.toObject === 'function' ? block.toObject() : block))
+        : parseKnowledgeContentToBlocks(article.content || '');
+      draft = await KnowledgeDraft.create({
+        authorId: article.authorId,
+        circleId: article.circleId || null,
+        visibility: article.visibility || 'public',
+        title: article.title,
+        subtitle: article.subtitle || '',
+        summary: article.summary || '',
+        format: article.format || 'guide',
+        category: article.category || 'Thinking',
+        topics: article.topics || [],
+        tags: article.tags || [],
+        coverImage: article.coverImage || '',
+        body,
+        outline: latestVersion?.outline || [],
+        origin: article.origin || { type: 'independent' },
+        sourceSnapshotId: article.sourceSnapshotId || null,
+        sourceReferences: article.sourceReferences || [],
+        aiAssisted: article.aiAssisted || false,
+        aiDisclosure: article.aiDisclosure || '',
+        versionNumber: article.version || 1,
+        publishedArticleId: article._id,
+        status: 'active',
+      });
+    }
+
+    res.json({ draft });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getDraftById = async (req, res, next) => {
   try {
     const { draftId } = req.params;
@@ -557,7 +557,8 @@ export const getDraftById = async (req, res, next) => {
     let snapshot = null;
     let analysis = null;
     if (draft.sourceSnapshotId) {
-      snapshot = await SourceSnapshot.findById(draft.sourceSnapshotId).lean();
+      const storedSnapshot = await SourceSnapshot.findById(draft.sourceSnapshotId).lean();
+      snapshot = presentSourceSnapshot(storedSnapshot);
     }
     if (draft.sourceAnalysisId) {
       analysis = await SourceAnalysis.findById(draft.sourceAnalysisId).lean();
@@ -591,21 +592,45 @@ export const updateDraft = async (req, res, next) => {
       tags,
       coverImage,
       sourceReferences,
+      useSourceContext,
       aiAssisted,
       aiDisclosure,
     } = req.body;
 
-    if (title !== undefined) draft.title = title.trim();
-    if (subtitle !== undefined) draft.subtitle = subtitle.trim();
-    if (summary !== undefined) draft.summary = summary.trim();
-    if (body !== undefined && Array.isArray(body)) draft.body = body;
-    if (outline !== undefined && Array.isArray(outline)) draft.outline = outline;
+    if (title !== undefined) {
+      if (typeof title !== 'string') return res.status(400).json({ error: 'Title must be text' });
+      draft.title = title.trim();
+    }
+    if (subtitle !== undefined) {
+      if (typeof subtitle !== 'string') return res.status(400).json({ error: 'Subtitle must be text' });
+      draft.subtitle = subtitle.trim();
+    }
+    if (summary !== undefined) {
+      if (typeof summary !== 'string') return res.status(400).json({ error: 'Summary must be text' });
+      draft.summary = summary.trim();
+    }
+    if (body !== undefined && Array.isArray(body)) {
+      const imageBlocks = body.filter((block) => block?.type === 'image');
+      if (imageBlocks.length > 8) {
+        return res.status(400).json({ error: 'Articles can contain at most 8 inline images.' });
+      }
+      if (imageBlocks.some((block) => typeof block.content !== 'string' || block.content.length > 1_050_000)) {
+        return res.status(400).json({ error: 'Each inline image must be uploaded as a compressed JPG, PNG, or WebP under 750 KB.' });
+      }
+      draft.body = body;
+    }
+    if (outline !== undefined && Array.isArray(outline)) {
+      draft.outline = outline
+        .filter((section) => typeof section?.heading === 'string' && section.heading.trim())
+        .map((section, index) => ({ ...section, heading: section.heading.trim(), order: index + 1 }));
+    }
     if (format !== undefined) draft.format = format;
     if (category !== undefined) draft.category = category;
     if (topics !== undefined) draft.topics = topics;
     if (tags !== undefined) draft.tags = tags;
     if (coverImage !== undefined) draft.coverImage = coverImage;
     if (sourceReferences !== undefined) draft.sourceReferences = sourceReferences;
+    if (useSourceContext !== undefined) draft.useSourceContext = Boolean(useSourceContext);
     if (aiAssisted !== undefined) draft.aiAssisted = aiAssisted;
     if (aiDisclosure !== undefined) draft.aiDisclosure = aiDisclosure;
 
@@ -654,7 +679,11 @@ export const publishDraft = async (req, res, next) => {
     });
     if (circleAccess.error) return res.status(circleAccess.status).json({ error: circleAccess.error });
 
-    if (!draft.title || !draft.title.trim() || draft.title === 'Untitled Draft') {
+    if (
+      !draft.title ||
+      !draft.title.trim() ||
+      ['Untitled Draft', 'Untitled Knowledge Article', 'Untitled Knowledge Draft'].includes(draft.title.trim())
+    ) {
       return res.status(400).json({ error: 'Please provide a clear title before publishing.' });
     }
 
@@ -664,8 +693,15 @@ export const publishDraft = async (req, res, next) => {
     }
 
     // Generate summary fallback if not provided
-    const textContent = blocks.map((b) => b.content).filter(Boolean).join('\n\n');
-    const summary = draft.summary?.trim() || textContent.slice(0, 160) + '...';
+    const textContent = blocks
+      .filter((block) => block.type !== 'image')
+      .map((block) => block.content)
+      .filter(Boolean)
+      .join('\n\n');
+    if (!textContent.trim()) {
+      return res.status(400).json({ error: 'Add article text before publishing.' });
+    }
+    const summary = draft.summary?.trim() || textContent.slice(0, 160);
 
     // Create or update published article
     let article;
@@ -754,7 +790,8 @@ export const publishDraft = async (req, res, next) => {
 export const getArticleSources = async (req, res, next) => {
   try {
     const { articleId } = req.params;
-    const article = await findAccessibleKnowledge(articleId, req.user?._id).lean();
+    const articleDoc = await findAccessibleKnowledge(articleId, req.user?._id);
+    const article = typeof articleDoc?.toObject === 'function' ? articleDoc.toObject() : articleDoc;
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     const references = article.sourceReferences || [];
@@ -995,6 +1032,8 @@ export const updateDraftSources = async (req, res, next) => {
         .cursor();
 
       for await (const c of cursor) {
+        newItemsCount += 1;
+        if (newItems.length >= MAX_SOURCE_MANIFEST_ITEMS) continue;
         newItems.push({
           sourceType: 'discussionContribution',
           sourceId: c._id,
@@ -1004,7 +1043,7 @@ export const updateDraftSources = async (req, res, next) => {
           authorInitials: c.authorInitials,
           authorColor: c.authorColor,
           contentPreview: c.body?.slice(0, 200) || '',
-          fullBody: c.body || '',
+          fullBody: (c.body || '').slice(0, 1200),
           voteCount: c.votes || 0,
           createdAt: c.createdAt,
         });
@@ -1019,6 +1058,8 @@ export const updateDraftSources = async (req, res, next) => {
         .cursor();
 
       for await (const r of cursor) {
+        newItemsCount += 1;
+        if (newItems.length >= MAX_SOURCE_MANIFEST_ITEMS) continue;
         newItems.push({
           sourceType: 'postReply',
           sourceId: r._id,
@@ -1028,14 +1069,12 @@ export const updateDraftSources = async (req, res, next) => {
           authorInitials: r.authorInitials,
           authorColor: r.authorColor,
           contentPreview: r.body?.slice(0, 200) || '',
-          fullBody: r.body || '',
+          fullBody: (r.body || '').slice(0, 1200),
           voteCount: 0,
           createdAt: r.createdAt,
         });
       }
     }
-
-    newItemsCount = newItems.length;
 
     if (newItemsCount === 0) {
       return res.json({
@@ -1055,21 +1094,60 @@ export const updateDraftSources = async (req, res, next) => {
       authorInitials: item.authorInitials,
       authorColor: item.authorColor,
       contentPreview: item.contentPreview,
+      sourceText: item.fullBody || item.contentPreview || '',
       voteCount: item.voteCount,
       selectionReason: 'novel',
       createdAt: item.createdAt,
     }));
 
-    snapshot.sourceManifest = [...(snapshot.sourceManifest || []), ...newManifestItems];
+    const rootPost = snapshot.sourceType === 'post'
+      ? (snapshot.sourceManifest || []).find((item) => item.sourceType === 'post')
+      : null;
+    const combinedManifest = [
+      ...(snapshot.sourceManifest || []).filter((item) => item.sourceType !== 'post'),
+      ...newManifestItems,
+    ];
+    const availableSlots = MAX_SOURCE_MANIFEST_ITEMS - (rootPost ? 1 : 0);
+    snapshot.sourceManifest = [
+      ...(rootPost ? [rootPost] : []),
+      ...combinedManifest.slice(-availableSlots),
+    ];
+    snapshot.selectedCount = snapshot.sourceManifest.length;
     snapshot.totalEligibleSources = (snapshot.totalEligibleSources || 0) + newItemsCount;
     snapshot.snapshotBoundaryTime = now;
+
+    if (snapshot.sourceType === 'discussion') {
+      const [contributors] = await DiscussionContribution.aggregate([
+        {
+          $match: {
+            discussionId: snapshot.sourceId,
+            status: 'active',
+            createdAt: { $lte: now },
+          },
+        },
+        { $group: { _id: '$authorId' } },
+        { $count: 'count' },
+      ]);
+      snapshot.uniqueContributors = contributors?.count || 0;
+    } else {
+      const [replyContributors] = await PostReply.aggregate([
+        { $match: { postId: snapshot.sourceId, createdAt: { $lte: now } } },
+        { $group: { _id: '$authorId' } },
+        { $count: 'count' },
+      ]);
+      const sourcePost = await Post.findById(snapshot.sourceId).select('authorId').lean();
+      const authorReplied = sourcePost
+        ? await PostReply.exists({ postId: snapshot.sourceId, authorId: sourcePost.authorId, createdAt: { $lte: now } })
+        : false;
+      snapshot.uniqueContributors = (replyContributors?.count || 0) + (authorReplied ? 0 : 1);
+    }
+
     await snapshot.save();
 
     // Re-run zero-cost analysis to update themes
     const updatedAnalysis = await runZeroCostAnalysis({
       snapshot,
       rawItems: snapshot.sourceManifest,
-      sourceTitle: snapshot.sourceTitle,
     });
 
     draft.sourceAnalysisId = updatedAnalysis._id;
@@ -1080,7 +1158,7 @@ export const updateDraftSources = async (req, res, next) => {
       newContributionsCount: newItemsCount,
       message: `Incorporated ${newItemsCount} new community contributions into the analysis.`,
       updatedAnalysis,
-      snapshot,
+      snapshot: presentSourceSnapshot(snapshot),
     });
   } catch (err) {
     next(err);

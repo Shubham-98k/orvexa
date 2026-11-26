@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
-import { Database, Sparkles, MessageSquare, Quote, User, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { Database, Quote, ExternalLink, RefreshCw } from 'lucide-react';
 import Avatar from '../common/Avatar';
 
-export default function SourceSelectionPanel({ snapshot, analysis, onInsertQuote }) {
-  const [activeTab, setActiveTab] = useState('themes'); // 'themes' | 'sources'
+export default function SourceSelectionPanel({
+  snapshot,
+  analysis,
+  onInsertQuote,
+  useSourceContext = true,
+  onToggleSourceContext,
+  onRefreshSources,
+  refreshing = false,
+}) {
+  const [activeTab, setActiveTab] = useState('sources');
 
   if (!snapshot) {
     return (
@@ -32,13 +40,48 @@ export default function SourceSelectionPanel({ snapshot, analysis, onInsertQuote
           </span>
         </div>
         <p className="text-xs font-semibold text-[#2c3345] line-clamp-1">{snapshot.sourceTitle}</p>
+        {snapshot.sourceType && (
+          <a
+            href={snapshot.sourceType === 'discussion'
+              ? `/discussions/${snapshot.sourceId}`
+              : `/discover?postId=${snapshot.sourceId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] font-bold text-[#3f5ce8] hover:underline"
+          >
+            Open original {snapshot.sourceType === 'discussion' ? 'discussion' : 'Post'} <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
         <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#d6e2ff]/60 text-[11px] text-[#556987]">
           <div>
-            Total items: <b>{snapshot.totalEligibleSources}</b>
+            Total source items: <b>{snapshot.totalEligibleSources}</b>
           </div>
           <div>
             Contributors: <b>{snapshot.uniqueContributors}</b>
           </div>
+          <div className="col-span-2">
+            Items shown below: <b>{snapshot.selectedCount ?? manifest.length}</b> (bounded sample)
+          </div>
+          <label className="col-span-2 flex items-start gap-2 border-t border-[#d6e2ff]/60 pt-2 text-[11px] text-[#38425b]">
+            <input
+              type="checkbox"
+              checked={useSourceContext}
+              onChange={(event) => onToggleSourceContext?.(event.target.checked)}
+              className="mt-0.5 accent-[#3f5ce8]"
+            />
+            <span>Include this source snapshot in AI requests. Turning this off keeps provenance but excludes source text.</span>
+          </label>
+          {onRefreshSources && (
+            <button
+              type="button"
+              onClick={onRefreshSources}
+              disabled={refreshing}
+              className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d6e2ff] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#3f5ce8] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing sources...' : 'Refresh source snapshot'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -46,36 +89,36 @@ export default function SourceSelectionPanel({ snapshot, analysis, onInsertQuote
       <div className="flex border-b border-[#e9e9ed] text-xs font-bold text-[#737b8d]">
         <button
           type="button"
-          onClick={() => setActiveTab('themes')}
-          className={`pb-2 px-3 border-b-2 cursor-pointer transition-colors ${
-            activeTab === 'themes' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f]'
-          }`}
-        >
-          Discovered Themes ({themes.length})
-        </button>
-        <button
-          type="button"
           onClick={() => setActiveTab('sources')}
           className={`pb-2 px-3 border-b-2 cursor-pointer transition-colors ${
             activeTab === 'sources' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f]'
           }`}
         >
-          Contributions ({manifest.length})
+          Source sample ({manifest.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('themes')}
+          className={`pb-2 px-3 border-b-2 cursor-pointer transition-colors ${
+            activeTab === 'themes' ? 'border-[#3f5ce8] text-[#3f5ce8]' : 'border-transparent hover:text-[#17213f]'
+          }`}
+        >
+          Keyword stats ({themes.length})
         </button>
       </div>
 
-      {/* Tab: Themes */}
+      {/* Tab: Source metadata */}
       {activeTab === 'themes' && (
         <div className="space-y-2.5">
           {themes.length === 0 ? (
-            <p className="text-xs text-[#8b92a1]">No thematic clusters discovered.</p>
+            <p className="text-xs text-[#8b92a1]">No keyword statistics are available yet.</p>
           ) : (
             themes.map((theme) => (
               <div key={theme.themeId} className="p-3 bg-white border border-[#e9e9ed] rounded-xl space-y-1.5 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#17213f]">{theme.label}</span>
                   <span className="text-[10px] font-semibold text-[#8b92a1] bg-[#f7f7f8] px-1.5 py-0.5 rounded">
-                    {theme.contributionCount} items
+                    {theme.contributionCount} sampled items
                   </span>
                 </div>
                 <p className="text-[11px] text-[#737b8d] leading-relaxed">{theme.summary}</p>

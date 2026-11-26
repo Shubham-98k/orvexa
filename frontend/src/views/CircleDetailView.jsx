@@ -705,11 +705,18 @@ export default function CircleDetailView() {
         <section className="space-y-4">
           {circle.joined && ['Posts', 'Discussions', 'Knowledge'].includes(tab) && (
             <div className="flex flex-wrap gap-2">
-              {['Post', 'Discussion', 'Knowledge article'].map((type) => (
+              {['Post', 'Discussion'].map((type) => (
                 <button key={type} onClick={() => onOpenCreate(type, circle._id)} className="inline-flex items-center gap-1.5 rounded-xl bg-[#3f5ce8] px-3 py-2 text-xs font-bold text-white">
                   <Plus className="w-3.5 h-3.5" /> Create {type}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => navigate(`/knowledge/studio?circleId=${encodeURIComponent(circle._id)}`)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#3f5ce8] px-3 py-2 text-xs font-bold text-white"
+              >
+                <Plus className="w-3.5 h-3.5" /> Create Knowledge article
+              </button>
             </div>
           )}
 
@@ -884,7 +891,18 @@ export default function CircleDetailView() {
         onClose={() => setActivePost(null)}
         onPostUpdated={handlePostUpdated}
         onOpenDiscussion={(discussionId) => navigate(`/discussions/${discussionId}`)}
-        onOpenCreateKnowledge={() => onOpenCreate('Knowledge article', circle._id)}
+        onOpenCreateKnowledge={async (post) => {
+          setActivePost(null);
+          try {
+            const response = await apiPost(`/posts/${post._id}/knowledge-drafts`, {});
+            if (response?.draft?._id) {
+              showToast?.('Knowledge Studio opened from post');
+              navigate(`/knowledge/studio/${response.draft._id}`);
+            }
+          } catch (requestError) {
+            alert(requestError.message || 'Could not start Knowledge draft');
+          }
+        }}
       />}
     </div>
   );

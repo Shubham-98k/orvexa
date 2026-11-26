@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, ChevronUp, ChevronDown, ListOrdered } from 'lucide-react';
+import { useState } from 'react';
+import { Trash2, ChevronUp, ChevronDown, ListOrdered, Sparkles } from 'lucide-react';
 
-export default function OutlineEditor({ outline = [], onUpdateOutline, onInsertHeadingFromOutline }) {
+export default function OutlineEditor({
+  outline = [],
+  onUpdateOutline,
+  onInsertAllHeadings,
+  onDraftSection,
+  bodyBlocks = [],
+  onNavigateToSection,
+}) {
   const [newHeading, setNewHeading] = useState('');
 
   const handleAddSection = (e) => {
@@ -11,8 +18,7 @@ export default function OutlineEditor({ outline = [], onUpdateOutline, onInsertH
     const newSec = {
       sectionId: `sec-${Date.now()}`,
       heading: newHeading.trim(),
-      notes: 'Author custom section',
-      suggestedFocus: 'Elaborate on this specific dimension.',
+      notes: '',
       mappedSourceIds: [],
       order: outline.length + 1,
     };
@@ -44,6 +50,9 @@ export default function OutlineEditor({ outline = [], onUpdateOutline, onInsertH
           <span>Article Outline ({outline.length})</span>
         </h4>
       </div>
+      <p className="text-[11px] text-[#737b8d]">
+        The outline is separate from the article body. Add sections here, then insert them when you are ready.
+      </p>
 
       <div className="space-y-2">
         {outline.map((sec, idx) => (
@@ -52,7 +61,17 @@ export default function OutlineEditor({ outline = [], onUpdateOutline, onInsertH
             className="p-3 bg-[#fcfcfd] border border-[#e9e9ed] rounded-xl text-xs space-y-1 hover:border-[#3f5ce8]/30 transition-all"
           >
             <div className="flex items-start justify-between gap-2">
-              <span className="font-bold text-[#17213f] leading-snug">{sec.heading}</span>
+              <input
+                type="text"
+                value={sec.heading}
+                onChange={(event) => {
+                  const updated = [...outline];
+                  updated[idx] = { ...updated[idx], heading: event.target.value };
+                  onUpdateOutline(updated);
+                }}
+                aria-label={`Outline section ${idx + 1} heading`}
+                className="min-w-0 flex-1 bg-transparent font-bold text-[#17213f] leading-snug focus:outline-none"
+              />
               <div className="flex items-center gap-1 shrink-0 text-[#8b92a1]">
                 <button
                   type="button"
@@ -79,14 +98,36 @@ export default function OutlineEditor({ outline = [], onUpdateOutline, onInsertH
                 </button>
               </div>
             </div>
-            {sec.notes && <p className="text-[11px] text-[#737b8d] leading-relaxed">{sec.notes}</p>}
-            {onInsertHeadingFromOutline && (
+            <textarea
+              value={sec.notes || ''}
+              onChange={(event) => {
+                const updated = [...outline];
+                updated[idx] = { ...updated[idx], notes: event.target.value };
+                onUpdateOutline(updated);
+              }}
+              aria-label={`Outline section ${idx + 1} notes`}
+              placeholder="Optional notes or evidence to cover"
+              rows={2}
+              className="w-full bg-transparent text-[11px] text-[#737b8d] leading-relaxed focus:outline-none resize-y"
+            />
+            {onDraftSection && (
               <button
                 type="button"
-                onClick={() => onInsertHeadingFromOutline(sec.heading)}
-                className="text-[10px] font-bold text-[#3f5ce8] hover:underline cursor-pointer"
+                onClick={() => onDraftSection(sec)}
+                className="text-[10px] font-bold text-[#3f5ce8] hover:underline cursor-pointer flex items-center gap-1"
               >
-                + Insert into draft body
+                <Sparkles className="w-3 h-3" /> Draft this section
+              </button>
+            )}
+            {onNavigateToSection && bodyBlocks.some((block) => (
+              block.type?.startsWith('heading') && block.content?.trim() === sec.heading?.trim()
+            )) && (
+              <button
+                type="button"
+                onClick={() => onNavigateToSection(sec)}
+                className="ml-3 text-[10px] font-bold text-[#737b8d] hover:underline"
+              >
+                Go to article section
               </button>
             )}
           </div>
@@ -109,6 +150,15 @@ export default function OutlineEditor({ outline = [], onUpdateOutline, onInsertH
           Add
         </button>
       </form>
+      {outline.length > 0 && onInsertAllHeadings && (
+        <button
+          type="button"
+          onClick={onInsertAllHeadings}
+          className="w-full rounded-xl border border-[#d6e2ff] bg-[#eef1ff] px-3 py-2 text-[11px] font-bold text-[#3f5ce8] hover:bg-[#e2e8ff]"
+        >
+          Insert all section headings into article
+        </button>
+      )}
     </div>
   );
 }

@@ -162,7 +162,9 @@ export const withCircleContentAccess = async (query, userId) => ({
 
 export const authorizeCircleContent = async ({ circleId, userId, contentType, visibility }) => {
   if (!circleId) {
-    const supportedVisibilities = contentType === 'post' ? ['public', 'followers'] : ['public'];
+    const supportedVisibilities = ['post', 'knowledge'].includes(contentType)
+      ? ['public', 'followers']
+      : ['public'];
     if (visibility && !supportedVisibilities.includes(visibility)) {
       return { error: 'Invalid content visibility', status: 400 };
     }

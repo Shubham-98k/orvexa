@@ -5,7 +5,7 @@ const blockSchema = new mongoose.Schema(
     id: { type: String, required: true },
     type: {
       type: String,
-      enum: ['paragraph', 'heading1', 'heading2', 'heading3', 'quote', 'bulletList', 'numberedList', 'code', 'sourceCitation', 'callout'],
+      enum: ['paragraph', 'heading1', 'heading2', 'heading3', 'quote', 'bulletList', 'numberedList', 'code', 'sourceCitation', 'callout', 'image'],
       default: 'paragraph',
     },
     content: { type: String, default: '' },
@@ -69,7 +69,7 @@ const knowledgeSchema = new mongoose.Schema(
     },
     visibility: {
       type: String,
-      enum: ['public', 'circle'],
+      enum: ['public', 'followers', 'circle'],
       default: 'public',
       index: true,
     },
@@ -100,7 +100,7 @@ const knowledgeSchema = new mongoose.Schema(
     },
     format: {
       type: String,
-      enum: ['guide', 'explainer', 'research', 'perspective', 'notes', 'other'],
+      enum: ['guide', 'explainer', 'research', 'perspective', 'notes', 'synthesis', 'freeform', 'other'],
       default: 'guide',
       index: true,
     },
