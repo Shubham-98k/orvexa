@@ -171,9 +171,19 @@ export default function DiscoverView() {
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const titleMatch = item.title?.toLowerCase().includes(q);
-        const bodyMatch = item.body?.toLowerCase().includes(q) || item.summary?.toLowerCase().includes(q);
-        const authorMatch = item.authorName?.toLowerCase().includes(q);
+        const titleStr = typeof item.title === 'string' ? item.title : '';
+        const bodyStr =
+          typeof item.body === 'string'
+            ? item.body
+            : typeof item.content === 'string'
+            ? item.content
+            : '';
+        const summaryStr = typeof item.summary === 'string' ? item.summary : '';
+        const authorStr = typeof item.authorName === 'string' ? item.authorName : '';
+
+        const titleMatch = titleStr.toLowerCase().includes(q);
+        const bodyMatch = bodyStr.toLowerCase().includes(q) || summaryStr.toLowerCase().includes(q);
+        const authorMatch = authorStr.toLowerCase().includes(q);
         if (!titleMatch && !bodyMatch && !authorMatch) return false;
       }
 
@@ -215,15 +225,6 @@ export default function DiscoverView() {
         </div>
 
         <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
-          <button
-            type="button"
-            onClick={toggleDarkMode}
-            className="p-2.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
           <Link
             to="/discover"
             className="p-2.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -243,6 +244,7 @@ export default function DiscoverView() {
 
           <Link to="/profile" className="cursor-pointer">
             <Avatar
+              src={user?.avatar}
               initials={user?.initials || 'OP'}
               color={user?.avatarColor || 'purple'}
               size="w-9 h-9 text-xs"

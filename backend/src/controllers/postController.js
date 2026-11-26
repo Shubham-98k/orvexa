@@ -369,6 +369,40 @@ export const deletePost = async (req, res, next) => {
   }
 };
 
+export const updatePost = async (req, res, next) => {
+  try {
+    const { postId } = req.params;
+    const { title, body, imageUrl, tags } = req.body || {};
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const isOwner = req.user && String(post.authorId) === String(req.user._id);
+    const isModOrAdmin = req.user && (
+      req.user.platformRole === 'admin' ||
+      req.user.platformRole === 'moderator' ||
+      req.user.role === 'admin' ||
+      req.user.role === 'moderator'
+    );
+
+    if (!isOwner && !isModOrAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to edit this post' });
+    }
+
+    if (title !== undefined) post.title = String(title).trim();
+    if (body !== undefined) post.body = String(body).trim();
+    if (imageUrl !== undefined) post.imageUrl = imageUrl ? String(imageUrl).trim() : undefined;
+    if (Array.isArray(tags)) post.tags = tags;
+
+    await post.save();
+    res.json({ success: true, post });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const convertPostToDiscussion = async (req, res, next) => {
   try {
     const { postId } = req.params;
@@ -379,11 +413,10 @@ export const convertPostToDiscussion = async (req, res, next) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    // Authorization: only the post author or an admin/moderator can convert
+    // Only the post author can convert their post to a discussion.
     const isAuthor = post.authorId && post.authorId.toString() === req.user._id.toString();
-    const isAdmin = req.user.platformRole === 'admin' || req.user.role === 'admin' || req.user.platformRole === 'moderator';
-    if (!isAuthor && !isAdmin) {
-      return res.status(403).json({ error: 'Only the author or staff can convert this post to a discussion' });
+    if (!isAuthor) {
+      return res.status(403).json({ error: 'Only the author can convert this post to a discussion' });
     }
 
     // Idempotency: If already converted, return existing Discussion

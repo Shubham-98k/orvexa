@@ -759,6 +759,47 @@ export const getArticleSources = async (req, res, next) => {
       };
     });
 
+    // If references were empty or origin root is present, include the root origin as a source
+    if (resolvedSources.length === 0 && article.origin) {
+      if (article.origin.type === 'post' && article.origin.postId) {
+        const originPost = await Post.findById(article.origin.postId)
+          .select('_id authorName authorInitials authorColor body createdAt title')
+          .lean();
+        if (originPost) {
+          resolvedSources.push({
+            sourceId: originPost._id,
+            sourceType: 'post',
+            isAvailable: true,
+            authorName: originPost.authorName,
+            authorInitials: originPost.authorInitials,
+            authorColor: originPost.authorColor,
+            previewText: originPost.body?.slice(0, 200) || originPost.title || 'Original post content',
+            quoteText: originPost.body?.slice(0, 140) || originPost.title,
+            createdAt: originPost.createdAt,
+            role: 'Catalyst / Original Post Author',
+          });
+        }
+      } else if (article.origin.type === 'discussion' && article.origin.discussionId) {
+        const originDisc = await Discussion.findById(article.origin.discussionId)
+          .select('_id authorName authorInitials authorColor body createdAt title')
+          .lean();
+        if (originDisc) {
+          resolvedSources.push({
+            sourceId: originDisc._id,
+            sourceType: 'discussion',
+            isAvailable: true,
+            authorName: originDisc.authorName,
+            authorInitials: originDisc.authorInitials,
+            authorColor: originDisc.authorColor,
+            previewText: originDisc.body?.slice(0, 200) || originDisc.title || 'Discussion prompt',
+            quoteText: originDisc.body?.slice(0, 140) || originDisc.title,
+            createdAt: originDisc.createdAt,
+            role: 'Discussion Catalyst',
+          });
+        }
+      }
+    }
+
     res.json({ sources: resolvedSources });
   } catch (err) {
     next(err);
@@ -989,6 +1030,41 @@ export const updateDraftSources = async (req, res, next) => {
       updatedAnalysis,
       snapshot,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateKnowledgeArticle = async (req, res, next) => {
+  try {
+    const { articleId } = req.params;
+    const { title, summary, content, coverImage, category } = req.body || {};
+
+    const article = await KnowledgeArticle.findById(articleId);
+    if (!article) {
+      return res.status(404).json({ error: 'Knowledge article not found' });
+    }
+
+    const isOwner = req.user && String(article.authorId) === String(req.user._id);
+    const isModOrAdmin = req.user && (
+      req.user.platformRole === 'admin' ||
+      req.user.platformRole === 'moderator' ||
+      req.user.role === 'admin' ||
+      req.user.role === 'moderator'
+    );
+
+    if (!isOwner && !isModOrAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to edit this article' });
+    }
+
+    if (title !== undefined) article.title = String(title).trim();
+    if (summary !== undefined) article.summary = String(summary).trim();
+    if (content !== undefined) article.content = String(content).trim();
+    if (coverImage !== undefined) article.coverImage = coverImage ? String(coverImage).trim() : undefined;
+    if (category !== undefined) article.category = category;
+
+    await article.save();
+    res.json({ success: true, article });
   } catch (err) {
     next(err);
   }

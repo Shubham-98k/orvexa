@@ -38,7 +38,7 @@ const discussionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['open', 'trending', 'under_review', 'accepted', 'locked', 'archived', 'removed'],
+      enum: ['open', 'trending', 'under_review', 'accepted', 'locked', 'archived', 'removed', 'closed'],
       default: 'open',
       index: true,
     },

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiGet, apiPatch, apiDelete } from '../api/client';
+import PostDetailModal from '../components/discover/PostDetailModal';
 import {
   ShieldAlert,
   Users,
@@ -15,9 +17,11 @@ import {
   X,
   MessageSquare,
   BookOpen,
+  ExternalLink,
 } from 'lucide-react';
 
 export default function AdminView() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.platformRole === 'admin';
   const isModerator = user?.role === 'moderator' || user?.platformRole === 'moderator';
@@ -43,6 +47,7 @@ export default function AdminView() {
   const [deleteTarget, setDeleteTarget] = useState(null); // { type, id, title }
   const [deleteReason, setDeleteReason] = useState('Content violates community guidelines.');
   const [deleting, setDeleting] = useState(false);
+  const [activeInspectedPost, setActiveInspectedPost] = useState(null);
 
   // Moderation state
   const [reports, setReports] = useState([]);
@@ -104,10 +109,7 @@ export default function AdminView() {
           ? `/discussions/${deleteTarget.id}`
           : `/knowledge/${deleteTarget.id}`;
 
-      await apiDelete(endpoint, {
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: deleteReason }),
-      });
+      await apiDelete(endpoint, { reason: deleteReason });
 
       // Update inspecting data state
       if (inspectingData) {
@@ -522,21 +524,43 @@ export default function AdminView() {
                       inspectingData.posts.map((post) => (
                         <div
                           key={post._id}
-                          className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 flex items-start justify-between gap-3"
+                          className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 flex items-start justify-between gap-3 hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors"
                         >
-                          <div className="space-y-1 min-w-0">
-                            {post.title && <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">{post.title}</h4>}
+                          <div
+                            onClick={() => setActiveInspectedPost(post)}
+                            className="space-y-1 min-w-0 cursor-pointer flex-1 group"
+                            title="Click to view full post details"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {post.title && (
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-[#3f5ce8]">
+                                  {post.title}
+                                </h4>
+                              )}
+                              <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                             <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{post.body}</p>
                             <span className="text-[10px] text-slate-400">{new Date(post.createdAt).toLocaleString()}</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget({ type: 'post', id: post._id, title: post.title || post.body.slice(0, 40) })}
-                            className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1 shrink-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Delete</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setActiveInspectedPost(post)}
+                              className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl cursor-pointer flex items-center gap-1"
+                              title="View full post"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget({ type: 'post', id: post._id, title: post.title || post.body.slice(0, 40) })}
+                              className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1 shrink-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </div>
                       ))
                     )
@@ -549,21 +573,41 @@ export default function AdminView() {
                       inspectingData.discussions.map((disc) => (
                         <div
                           key={disc._id}
-                          className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 flex items-start justify-between gap-3"
+                          className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 flex items-start justify-between gap-3 hover:border-purple-400 dark:hover:border-purple-600 transition-colors"
                         >
-                          <div className="space-y-1 min-w-0">
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">{disc.title}</h4>
+                          <div
+                            onClick={() => navigate(`/discussions/${disc._id}`)}
+                            className="space-y-1 min-w-0 cursor-pointer flex-1 group"
+                            title="Click to open discussion page"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                                {disc.title}
+                              </h4>
+                              <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                             <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{disc.body}</p>
                             <span className="text-[10px] text-slate-400">{new Date(disc.createdAt).toLocaleString()}</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget({ type: 'discussion', id: disc._id, title: disc.title })}
-                            className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1 shrink-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Delete</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/discussions/${disc._id}`)}
+                              className="px-2 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 text-xs font-semibold rounded-xl cursor-pointer flex items-center gap-1"
+                              title="Open discussion reader"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Open</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget({ type: 'discussion', id: disc._id, title: disc.title })}
+                              className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1 shrink-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </div>
                       ))
                     )
@@ -576,21 +620,41 @@ export default function AdminView() {
                       inspectingData.knowledge.map((art) => (
                         <div
                           key={art._id}
-                          className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 flex items-start justify-between gap-3"
+                          className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 flex items-start justify-between gap-3 hover:border-amber-400 dark:hover:border-amber-600 transition-colors"
                         >
-                          <div className="space-y-1 min-w-0">
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">{art.title}</h4>
+                          <div
+                            onClick={() => navigate(`/knowledge/${art._id}`)}
+                            className="space-y-1 min-w-0 cursor-pointer flex-1 group"
+                            title="Click to open knowledge guide"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-600 dark:group-hover:text-amber-400">
+                                {art.title}
+                              </h4>
+                              <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                             <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{art.summary}</p>
                             <span className="text-[10px] text-slate-400">{new Date(art.createdAt).toLocaleString()}</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget({ type: 'knowledge', id: art._id, title: art.title })}
-                            className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1 shrink-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Delete</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/knowledge/${art._id}`)}
+                              className="px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 text-xs font-semibold rounded-xl cursor-pointer flex items-center gap-1"
+                              title="Open knowledge article"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Open</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget({ type: 'knowledge', id: art._id, title: art.title })}
+                              className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1 shrink-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </div>
                       ))
                     )
@@ -659,6 +723,22 @@ export default function AdminView() {
             </div>
           </div>
         </div>
+      )}
+      {/* Inspected Post Detail Modal */}
+      {activeInspectedPost && (
+        <PostDetailModal
+          post={activeInspectedPost}
+          onClose={() => setActiveInspectedPost(null)}
+          onOpenDiscussion={(disc) => {
+            setActiveInspectedPost(null);
+            const discId = typeof disc === 'string' ? disc : disc?._id;
+            if (discId) navigate(`/discussions/${discId}`);
+          }}
+          onOpenKnowledgeDraft={(kData) => {
+            setActiveInspectedPost(null);
+            navigate('/knowledge-studio', { state: { draft: kData } });
+          }}
+        />
       )}
     </div>
   );

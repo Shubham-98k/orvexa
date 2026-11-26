@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Bookmark, Share2, ThumbsUp, Database, ExternalLink, Clock, Calendar, Check, ListTree, UserPlus, UserCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bookmark, Share2, ThumbsUp, Database, ExternalLink, Clock, Calendar, Check, ListTree, UserPlus, UserCheck, Trash2, Edit3 } from 'lucide-react';
 import Avatar from '../components/common/Avatar';
-import { apiGet, apiPost, apiDelete } from '../api/client';
+import PostDetailModal from '../components/discover/PostDetailModal';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
 export default function KnowledgeReaderView() {
@@ -23,6 +24,13 @@ export default function KnowledgeReaderView() {
   const [hasVotedHelpful, setHasVotedHelpful] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [provenanceOpen, setProvenanceOpen] = useState(false);
+
+  // Edit & Source Post modal state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editSubtitle, setEditSubtitle] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [activePost, setActivePost] = useState(null);
 
   useEffect(() => {
     if (!articleId) return;
@@ -100,9 +108,10 @@ export default function KnowledgeReaderView() {
   const isAuthor =
     Boolean(user) &&
     (
-      String(user._id || user.id) === String(article?.authorId?._id || article?.authorId) ||
-      user.displayName === article?.authorName ||
-      user.username === article?.authorName ||
+      (
+        Boolean(article?.authorId) &&
+        String(user._id || user.id) === String(article?.authorId?._id || article?.authorId)
+      ) ||
       user.platformRole === 'admin' ||
       user.platformRole === 'moderator' ||
       user.role === 'admin' ||
@@ -123,6 +132,45 @@ export default function KnowledgeReaderView() {
   const handleShare = () => {
     navigator.clipboard?.writeText(window.location.href);
     showToast?.('Link copied to clipboard!');
+  };
+
+  const handleOpenOriginPost = async () => {
+    if (!article?.originDetails?.id) return;
+    try {
+      const res = await apiGet(`/posts/${article.originDetails.id}`);
+      if (res?.post) {
+        setActivePost(res.post);
+        return;
+      }
+    } catch {}
+    try {
+      const pub = await apiGet(`/public/posts/${article.originDetails.id}`);
+      if (pub?.post) {
+        setActivePost(pub.post);
+      }
+    } catch (err) {
+      alert(err.message || 'Unable to open original post');
+    }
+  };
+
+  const handleSaveEditArticle = async () => {
+    if (!editTitle.trim()) return;
+    try {
+      setSavingEdit(true);
+      const res = await apiPatch(`/knowledge/${articleId}`, {
+        title: editTitle.trim(),
+        summary: editSubtitle.trim(),
+      });
+      if (res?.article) {
+        setArticle((prev) => ({ ...prev, ...res.article }));
+        setIsEditing(false);
+        showToast?.('Article updated');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update article');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   if (loading) {
@@ -155,14 +203,28 @@ export default function KnowledgeReaderView() {
 
         <div className="flex items-center gap-2">
           {isAuthor && (
-            <button
-              type="button"
-              onClick={handleDeleteArticle}
-              className="p-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40 cursor-pointer transition-colors"
-              title="Delete Article"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditTitle(article.title || '');
+                  setEditSubtitle(article.subtitle || article.summary || '');
+                  setIsEditing((prev) => !prev);
+                }}
+                className="p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                title="Edit Article"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteArticle}
+                className="p-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40 cursor-pointer transition-colors"
+                title="Delete Article"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
           <button
             type="button"
@@ -202,14 +264,54 @@ export default function KnowledgeReaderView() {
           </span>
         </div>
 
-        <h1 className="text-2xl sm:text-4xl font-black text-[#17213f] leading-tight">
-          {article.title}
-        </h1>
+        {isEditing ? (
+          <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 space-y-3">
+            <div className="text-xs font-bold text-amber-700 dark:text-amber-300">Edit Article Details</div>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              placeholder="Article title..."
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
+            />
+            <input
+              type="text"
+              value={editSubtitle}
+              onChange={(e) => setEditSubtitle(e.target.value)}
+              placeholder="Summary / Subtitle..."
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingEdit || !editTitle.trim()}
+                onClick={handleSaveEditArticle}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#3f5ce8] hover:bg-[#324ecc] text-white cursor-pointer disabled:opacity-50 flex items-center gap-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>{savingEdit ? 'Saving...' : 'Save Changes'}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl sm:text-4xl font-black text-[#17213f] leading-tight">
+              {article.title}
+            </h1>
 
-        {article.subtitle && (
-          <p className="text-sm sm:text-base text-[#616a7d] font-medium leading-relaxed">
-            {article.subtitle}
-          </p>
+            {article.subtitle && (
+              <p className="text-sm sm:text-base text-[#616a7d] font-medium leading-relaxed">
+                {article.subtitle}
+              </p>
+            )}
+          </>
         )}
 
         {/* Author Bio Row */}
@@ -284,15 +386,37 @@ export default function KnowledgeReaderView() {
             </button>
           </div>
 
-          <p className="text-xs text-[#7c390e]">
-            Originally catalyzed by <b>{article.originDetails.authorName}</b> in "<i>{article.originDetails.title}</i>".
+          <p className="text-xs text-[#7c390e] flex items-center gap-1.5 flex-wrap">
+            <span>Originally catalyzed by <b>{article.originDetails.authorName}</b> in</span>
+            {article.originDetails.type === 'discussion' ? (
+              <Link
+                to={`/discussions/${article.originDetails.id}`}
+                className="font-bold underline hover:text-[#3f5ce8] inline-flex items-center gap-1"
+                title="Open source discussion"
+              >
+                <span>"{article.originDetails.title}"</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={handleOpenOriginPost}
+                className="font-bold underline hover:text-[#3f5ce8] inline-flex items-center gap-1 cursor-pointer"
+                title="View original post"
+              >
+                <span>"{article.originDetails.title}"</span>
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            )}
           </p>
 
           {provenanceOpen && (
             <div className="pt-2 border-t border-[#fde5ce] space-y-2 text-xs text-[#553c39] animate-in fade-in duration-150">
               <div className="flex items-center justify-between">
                 <span>Referenced Community Sources:</span>
-                <span className="font-bold">{sources.length} citations</span>
+                <span className="font-bold">
+                  {sources.length} {sources.length === 1 ? 'citation' : 'citations'}
+                </span>
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                 {sources.map((src, idx) => (
@@ -437,6 +561,19 @@ export default function KnowledgeReaderView() {
           )}
         </aside>
       </div>
+
+      {/* Origin Post Modal */}
+      {activePost && (
+        <PostDetailModal
+          post={activePost}
+          onClose={() => setActivePost(null)}
+          onOpenDiscussion={(disc) => {
+            setActivePost(null);
+            const discId = typeof disc === 'string' ? disc : disc?._id;
+            if (discId) navigate(`/discussions/${discId}`);
+          }}
+        />
+      )}
     </div>
   );
 }

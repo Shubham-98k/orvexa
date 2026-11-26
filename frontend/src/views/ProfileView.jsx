@@ -389,8 +389,9 @@ export default function ProfileView() {
               prev.map((p) => (p._id === updated._id ? { ...p, ...updated } : p))
             );
           }}
-          onOpenDiscussion={(discId) => {
+          onOpenDiscussion={(disc) => {
             setActivePost(null);
+            const discId = typeof disc === 'string' ? disc : disc?._id;
             if (discId) navigate(`/discussions/${discId}`);
           }}
           onOpenKnowledgeDraft={(kData) => {

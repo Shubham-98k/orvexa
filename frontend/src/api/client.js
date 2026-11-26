@@ -75,4 +75,8 @@ export const apiRequest = async (endpoint, options = {}) => {
 export const apiGet = (endpoint) => apiRequest(endpoint, { method: 'GET' });
 export const apiPost = (endpoint, body) => apiRequest(endpoint, { method: 'POST', body: JSON.stringify(body) });
 export const apiPatch = (endpoint, body) => apiRequest(endpoint, { method: 'PATCH', body: JSON.stringify(body) });
-export const apiDelete = (endpoint) => apiRequest(endpoint, { method: 'DELETE' });
+export const apiDelete = (endpoint, body) =>
+  apiRequest(endpoint, {
+    method: 'DELETE',
+    ...(body ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {}),
+  });

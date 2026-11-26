@@ -44,7 +44,7 @@ export async function reconcileDiscussionCounts(discussionId) {
 export const getDiscussions = async (req, res, next) => {
   try {
     const { category, sort, status, mode, page = 1, limit = 20 } = req.query;
-    let query = { status: { $ne: 'removed' } };
+    let query = { status: { $nin: ['removed', 'closed'] } };
     if (category && category !== 'All categories') query.category = category;
     if (status && status !== 'All statuses') query.status = status.toLowerCase().replace(' ', '_');
 
@@ -371,7 +371,7 @@ export const deleteDiscussion = async (req, res, next) => {
       return res.status(403).json({ error: 'Unauthorized to delete this discussion' });
     }
 
-    discussion.status = 'closed';
+    discussion.status = 'removed';
     await discussion.save();
 
     if (isModOrAdmin && !isOwner && discussion.authorId) {
@@ -395,6 +395,41 @@ export const deleteDiscussion = async (req, res, next) => {
     }
 
     res.json({ success: true, message: 'Discussion deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateDiscussion = async (req, res, next) => {
+  try {
+    const { discussionId } = req.params;
+    const { title, body, imageUrl, category, tags } = req.body || {};
+
+    const discussion = await Discussion.findById(discussionId);
+    if (!discussion) {
+      return res.status(404).json({ error: 'Discussion not found' });
+    }
+
+    const isOwner = req.user && String(discussion.authorId) === String(req.user._id);
+    const isModOrAdmin = req.user && (
+      req.user.platformRole === 'admin' ||
+      req.user.platformRole === 'moderator' ||
+      req.user.role === 'admin' ||
+      req.user.role === 'moderator'
+    );
+
+    if (!isOwner && !isModOrAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to edit this discussion' });
+    }
+
+    if (title !== undefined) discussion.title = String(title).trim();
+    if (body !== undefined) discussion.body = String(body).trim();
+    if (imageUrl !== undefined) discussion.imageUrl = imageUrl ? String(imageUrl).trim() : undefined;
+    if (category !== undefined) discussion.category = category;
+    if (Array.isArray(tags)) discussion.tags = tags;
+
+    await discussion.save();
+    res.json({ success: true, discussion });
   } catch (err) {
     next(err);
   }

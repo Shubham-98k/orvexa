@@ -80,7 +80,47 @@ const runKnowledgeAndConversionTests = async () => {
     console.log('✓ Test 4 Passed: Post replies are strictly locked after conversion with 409 redirect notice.');
   }
 
-  // Test 5: Post-to-Discussion Conversion preserves authorship, timestamps & hierarchy
+  // Test 5: Only the post author can convert a post to a Discussion
+  {
+    const { convertPostToDiscussion } = await import('../src/controllers/postController.js');
+    const originalFindById = Post.findById;
+    const authorId = new mongoose.Types.ObjectId();
+    const adminId = new mongoose.Types.ObjectId();
+    Post.findById = async () => ({ _id: new mongoose.Types.ObjectId(), authorId });
+
+    let statusCode = null;
+    let jsonBody = null;
+    const mockRes = {
+      status(c) {
+        statusCode = c;
+        return this;
+      },
+      json(body) {
+        jsonBody = body;
+        return this;
+      },
+    };
+
+    try {
+      await convertPostToDiscussion(
+        {
+          params: { postId: '507f1f77bcf86cd799439011' },
+          body: {},
+          user: { _id: adminId, platformRole: 'admin', role: 'admin' },
+        },
+        mockRes,
+        () => {}
+      );
+      assert.equal(statusCode, 403, "An admin must not convert another user's post");
+      assert.match(jsonBody.error, /Only the author/);
+    } finally {
+      Post.findById = originalFindById;
+    }
+
+    console.log("✓ Test 5 Passed: Admins cannot convert another user's post to a Discussion.");
+  }
+
+  // Test 6: Post-to-Discussion Conversion preserves authorship, timestamps & hierarchy
   {
     const authorId = new mongoose.Types.ObjectId();
     const reply1Id = new mongoose.Types.ObjectId();
@@ -184,10 +224,10 @@ const runKnowledgeAndConversionTests = async () => {
     ]).size;
     assert.equal(distinctContributors, 3, 'Must compute 3 canonical distinct contributors (post author + 2 reply authors)');
 
-    console.log('✓ Test 5 Passed: Post conversion cleanly migrates replies, preserves timestamps and nested hierarchy.');
+    console.log('✓ Test 6 Passed: Post conversion cleanly migrates replies, preserves timestamps and nested hierarchy.');
   }
 
-  // Test 6: Zero-Cost Analysis Engine on Discussion contributions
+  // Test 7: Zero-Cost Analysis Engine on Discussion contributions
   {
     const mockItems = [
       {
@@ -245,10 +285,10 @@ const runKnowledgeAndConversionTests = async () => {
     assert.ok(hasContrasting, 'Must identify contrasting perspectives (containing "however" / "risk")');
 
     SourceAnalysis.create = origCreate;
-    console.log('✓ Test 6 Passed: Zero-cost analysis pipeline computes real counts, TF-IDF themes and outlines.');
+    console.log('✓ Test 7 Passed: Zero-cost analysis pipeline computes real counts, TF-IDF themes and outlines.');
   }
 
-  // Test 7: Knowledge directly from Post with 0 replies
+  // Test 8: Knowledge directly from Post with 0 replies
   {
     const postWithZeroReplies = {
       _id: new mongoose.Types.ObjectId(),
@@ -289,10 +329,10 @@ const runKnowledgeAndConversionTests = async () => {
     assert.ok(analysis.suggestedOutline.length >= 2, 'Outline generated from post content');
 
     SourceAnalysis.create = origCreate;
-    console.log('✓ Test 7 Passed: Knowledge creation works directly from Post with 0 replies without AI.');
+    console.log('✓ Test 8 Passed: Knowledge creation works directly from Post with 0 replies without AI.');
   }
 
-  // Test 8: KnowledgeArticle block schema, reading time & virtual compatibility
+  // Test 9: KnowledgeArticle block schema, reading time & virtual compatibility
   {
     const article = new KnowledgeArticle({
       authorId: new mongoose.Types.ObjectId(),
@@ -317,10 +357,10 @@ const runKnowledgeAndConversionTests = async () => {
     assert.equal(article.saveCount, 0, 'saveCount virtual returns savesCount');
     assert.equal(article.helpfulVotes, 0, 'helpfulVotes virtual returns helpfulCount');
 
-    console.log('✓ Test 8 Passed: KnowledgeArticle structured blocks, reading time and virtual aliases verified.');
+    console.log('✓ Test 9 Passed: KnowledgeArticle structured blocks, reading time and virtual aliases verified.');
   }
 
-  // Test 9: Version checkpointing & rollback integrity
+  // Test 10: Version checkpointing & rollback integrity
   {
     const articleId = new mongoose.Types.ObjectId();
     const authorId = new mongoose.Types.ObjectId();
@@ -360,20 +400,20 @@ const runKnowledgeAndConversionTests = async () => {
     assert.equal(rolledBack.versionNumber, 3, 'Incremented version to 3');
     assert.equal(rolledBack.changeSummary, 'Restored to version 1');
 
-    console.log('✓ Test 9 Passed: Version rollback correctly restores content and records checkpoint.');
+    console.log('✓ Test 10 Passed: Version rollback correctly restores content and records checkpoint.');
   }
 
-  // Test 10: AI Provider spending disabled by default
+  // Test 11: AI Provider spending disabled by default
   {
     const availability = await checkAIAvailability('any_user_id');
     assert.equal(availability.available, false, 'AI must be disabled by default');
     assert.equal(availability.code, 'AI_PROVIDER_DISABLED', 'Must return AI_PROVIDER_DISABLED');
     assert.ok(availability.reason.includes('disabled by administrator policy'));
 
-    console.log('✓ Test 10 Passed: AI spending is strictly disabled by default with honest user notice.');
+    console.log('✓ Test 11 Passed: AI spending is strictly disabled by default with honest user notice.');
   }
 
-  console.log('\nAll 10 Knowledge System & Post Conversion tests PASSED successfully!\n');
+  console.log('\nAll 11 Knowledge System & Post Conversion tests PASSED successfully!\n');
 };
 
 runKnowledgeAndConversionTests().catch((err) => {

@@ -46,19 +46,19 @@ export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode }) 
     <aside className="border-r border-[#e9e9ed] dark:border-slate-800 p-5 lg:p-6 flex flex-col justify-between sticky top-0 h-auto md:h-screen bg-white dark:bg-slate-900 transition-colors z-40">
       <div>
         {/* Brand header */}
-        <div className="flex items-center justify-between pb-6 border-b border-[#f0f0f2] dark:border-slate-800">
+        <div className="flex items-center justify-between pb-6 border-b border-[#f0f0f2] dark:border-slate-800 gap-2">
           <Link
             to="/app"
-            className="text-2xl font-black tracking-[-1.5px] text-[#17213f] dark:text-white flex items-center gap-2 group"
+            className="text-2xl font-black tracking-[-1.5px] text-[#17213f] dark:text-white flex items-center gap-2 group shrink-0"
           >
             <img
               src="/orvexa-logo.png"
               alt="Orvexa"
-              className="w-7 h-7 rounded-lg object-contain shadow-xs transition-transform duration-200 group-hover:scale-105"
+              className="w-7 h-7 rounded-lg object-contain shadow-xs transition-transform duration-200 group-hover:scale-105 shrink-0"
             />
-            <span>orvexa</span>
+            <span className="shrink-0">orvexa</span>
           </Link>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={toggleDarkMode}
@@ -70,7 +70,7 @@ export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode }) 
             <Link
               to="/"
               title="Return to Public Landing Page"
-              className="text-[10px] font-bold text-[#737b8d] dark:text-slate-400 hover:text-[#17213f] dark:hover:text-white px-2 py-1 rounded bg-[#f7f7f8] dark:bg-slate-800 border border-[#e9e9ed] dark:border-slate-700"
+              className="text-[10px] font-bold text-[#737b8d] dark:text-slate-400 hover:text-[#17213f] dark:hover:text-white px-2 py-1 rounded bg-[#f7f7f8] dark:bg-slate-800 border border-[#e9e9ed] dark:border-slate-700 whitespace-nowrap"
             >
               Landing
             </Link>
