@@ -436,23 +436,24 @@ export default function StoriesInMotionHero() {
               opacity: heroExitOpacity,
               pointerEvents: heroPointerEvents,
             }}
-            className="w-full max-w-[560px] bg-white/75 backdrop-blur-md border border-white/80 shadow-[0_20px_50px_rgba(20,20,20,0.1)] rounded-[28px] p-6 sm:p-8 flex flex-col items-start text-left"
+            className="w-full max-w-[590px] bg-white/75 backdrop-blur-md border border-white/80 shadow-[0_20px_50px_rgba(20,20,20,0.1)] rounded-[28px] p-5 sm:p-7 flex flex-col items-start text-left"
           >
             <div
               onClick={runMorphSequence}
               title="Click to replay doodle animation"
-              className="cursor-pointer select-none flex items-center justify-start gap-3.5 sm:gap-4 mb-4"
+              className="cursor-pointer select-none flex items-center justify-start gap-2.5 sm:gap-3.5 mb-3 w-full overflow-hidden"
             >
               <motion.div
                 whileHover={{ rotate: -4, scale: 1.04 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+                className="shrink-0"
               >
-                <OrvexaNewspaperBadge className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-[0_6px_14px_rgba(238,93,59,0.22)]" />
+                <OrvexaNewspaperBadge className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 drop-shadow-[0_4px_10px_rgba(238,93,59,0.20)]" />
               </motion.div>
 
               <h1
                 aria-label="orvexa"
-                className="flex items-center justify-center text-[50px] sm:text-[68px] md:text-[78px] font-black tracking-[-0.045em] text-[#1A1817] leading-none"
+                className="flex items-center justify-start text-[36px] sm:text-[48px] md:text-[54px] font-black tracking-[-0.04em] text-[#1A1817] leading-none shrink-0"
               >
                 {PHRASE_TOKENS.map((token, index) => {
                   const stage = stages[index];
@@ -461,7 +462,7 @@ export default function StoriesInMotionHero() {
                   return (
                     <span
                       key={index}
-                      className="relative inline-flex items-center justify-center min-w-[0.44em] h-[1.1em]"
+                      className="relative inline-flex items-center justify-center min-w-[0.42em] h-[1em]"
                     >
                       <AnimatePresence mode="popLayout">
                         {stage === 'doodle' && (
@@ -475,7 +476,7 @@ export default function StoriesInMotionHero() {
                               stiffness: 420,
                               damping: 20,
                             }}
-                            className="inline-flex items-center justify-center px-0.5"
+                            className="inline-flex items-center justify-center"
                           >
                             <DoodleComponent />
                           </motion.span>
@@ -505,7 +506,7 @@ export default function StoriesInMotionHero() {
 
             <h2
               style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
-              className="text-[28px] sm:text-[35px] md:text-[22px] font-extrabold tracking-[-0.025em] text-[#111111] leading-[1.1]"
+              className="text-[26px] sm:text-[32px] md:text-[25px] font-extrabold tracking-[-0.025em] text-[#111111] leading-[1.1]"
             >
               Discover Ideas,{' '}
               <span className="italic font-light">Connect</span>{' '}
@@ -514,7 +515,7 @@ export default function StoriesInMotionHero() {
 
             <p
               style={{ fontFamily: '"Inter", sans-serif' }}
-              className="mt-3 text-[12.5px] sm:text-[13.5px] font-normal tracking-[-0.015em] text-[#1F1D1C] leading-[1.45]"
+              className="mt-2.5 text-[12.5px] sm:text-[13.5px] font-normal tracking-[-0.015em] text-[#1F1D1C] leading-[1.45]"
             >
               A collaborative knowledge ecosystem where casual posts graduate into deep discussions, and discussions crystallize into permanent guides.
             </p>

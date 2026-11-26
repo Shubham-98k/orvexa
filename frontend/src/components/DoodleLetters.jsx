@@ -4,7 +4,7 @@ import React from 'react';
 export const DOODLES = [
   // o -> Open Story Book / Journal
   () => (
-    <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-20 md:h-20 overflow-visible">
+    <svg viewBox="0 0 64 64" className="w-8 h-8 sm:w-11 sm:h-11 md:w-12 md:h-12 overflow-visible">
       <path
         d="M10 18 C18 15, 26 17, 32 22 C38 17, 46 15, 54 18 L54 46 C46 43, 38 45, 32 50 C26 45, 18 43, 10 46 Z"
         fill="#F7F5EE"
@@ -18,7 +18,7 @@ export const DOODLES = [
   ),
   // r -> Fountain Pen Nib (Writing & Publishing)
   () => (
-    <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-20 md:h-20 overflow-visible">
+    <svg viewBox="0 0 64 64" className="w-8 h-8 sm:w-11 sm:h-11 md:w-12 md:h-12 overflow-visible">
       <path
         d="M32 8 L48 34 L41 48 L23 48 L16 34 Z"
         fill="#F7F5EE"
@@ -33,7 +33,7 @@ export const DOODLES = [
   ),
   // v -> Social Discussion / Speech Bubble with Heart
   () => (
-    <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-20 md:h-20 overflow-visible">
+    <svg viewBox="0 0 64 64" className="w-8 h-8 sm:w-11 sm:h-11 md:w-12 md:h-12 overflow-visible">
       <path
         d="M12 16 H52 A4 4 0 0 1 56 20 V40 A4 4 0 0 1 52 44 H26 L16 53 V44 H12 A4 4 0 0 1 8 40 V20 A4 4 0 0 1 12 16 Z"
         fill="#F7F5EE"
@@ -51,7 +51,7 @@ export const DOODLES = [
   ),
   // e -> Saved Bookmark / Curated Article
   () => (
-    <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-20 md:h-20 overflow-visible">
+    <svg viewBox="0 0 64 64" className="w-8 h-8 sm:w-11 sm:h-11 md:w-12 md:h-12 overflow-visible">
       <path
         d="M18 12 H46 A3 3 0 0 1 49 15 V52 L32 41 L15 52 V15 A3 3 0 0 1 18 12 Z"
         fill="#B5CE9F"
@@ -67,7 +67,7 @@ export const DOODLES = [
   ),
   // x -> Paper Airplane (Sharing & Reach)
   () => (
-    <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-20 md:h-20 overflow-visible">
+    <svg viewBox="0 0 64 64" className="w-8 h-8 sm:w-11 sm:h-11 md:w-12 md:h-12 overflow-visible">
       <path
         d="M8 38 L54 14 L38 50 L28 38 L54 14"
         fill="#F7F5EE"
@@ -95,7 +95,7 @@ export const DOODLES = [
   ),
   // a -> Broadcast Megaphone (Community & Audience)
   () => (
-    <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-20 md:h-20 overflow-visible">
+    <svg viewBox="0 0 64 64" className="w-8 h-8 sm:w-11 sm:h-11 md:w-12 md:h-12 overflow-visible">
       <path
         d="M14 26 H24 L46 14 V46 L24 34 H14 A3 3 0 0 1 11 31 V29 A3 3 0 0 1 14 26 Z"
         fill="#F7F5EE"
