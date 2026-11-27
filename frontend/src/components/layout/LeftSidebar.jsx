@@ -19,7 +19,7 @@ import {
 import Avatar from '../common/Avatar';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode }) {
+export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode, mobileOpen = false, onCloseMobile = () => {} }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -43,12 +43,26 @@ export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode }) 
     user?.platformRole === 'moderator';
 
   return (
-    <aside className="border-r border-[#e9e9ed] dark:border-slate-800 p-5 lg:p-6 flex flex-col justify-between sticky top-0 h-auto md:h-screen bg-white dark:bg-slate-900 transition-colors z-40">
+    <>
+      {/* Mobile Drawer Overlay */}
+      {mobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 md:hidden transition-opacity"
+        />
+      )}
+
+      <aside
+        className={`fixed md:sticky top-0 left-0 bottom-0 z-50 md:z-40 w-[270px] md:w-auto h-screen border-r border-[#e9e9ed] dark:border-slate-800 p-5 lg:p-6 flex flex-col justify-between bg-white dark:bg-slate-900 transition-transform duration-200 overflow-y-auto ${
+          mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
       <div>
         {/* Brand header */}
         <div className="flex items-center justify-between pb-6 border-b border-[#f0f0f2] dark:border-slate-800 gap-2">
           <Link
             to="/app"
+            onClick={onCloseMobile}
             className="text-2xl font-black tracking-[-1.5px] text-[#17213f] dark:text-white flex items-center gap-2 group shrink-0"
           >
             <img
@@ -79,48 +93,48 @@ export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode }) 
 
         {/* Primary Navigation */}
         <nav className="mt-6 space-y-1">
-          <NavLink to="/app" end className={navLinkClass}>
+          <NavLink to="/app" end className={navLinkClass} onClick={onCloseMobile}>
             <Compass className="w-4 h-4 stroke-[2.2]" />
             <span>Discover</span>
           </NavLink>
 
-          <NavLink to="/people" className={navLinkClass}>
+          <NavLink to="/people" className={navLinkClass} onClick={onCloseMobile}>
             <Users className="w-4 h-4 stroke-[2.2]" />
             <span>People</span>
           </NavLink>
 
-          <NavLink to="/knowledge" className={navLinkClass}>
+          <NavLink to="/knowledge" className={navLinkClass} onClick={onCloseMobile}>
             <BookOpen className="w-4 h-4 stroke-[2.2]" />
             <span>Knowledge</span>
           </NavLink>
 
-          <NavLink to="/circles" className={navLinkClass}>
+          <NavLink to="/circles" className={navLinkClass} onClick={onCloseMobile}>
             <Layers className="w-4 h-4 stroke-[2.2]" />
             <span>Circles</span>
           </NavLink>
 
-          <NavLink to="/library" className={navLinkClass}>
+          <NavLink to="/library" className={navLinkClass} onClick={onCloseMobile}>
             <Bookmark className="w-4 h-4 stroke-[2.2]" />
             <span>My Library</span>
           </NavLink>
 
-          <NavLink to="/notifications" className={navLinkClass}>
+          <NavLink to="/notifications" className={navLinkClass} onClick={onCloseMobile}>
             <Bell className="w-4 h-4 stroke-[2.2]" />
             <span>Notifications</span>
           </NavLink>
 
-          <NavLink to="/messages" className={navLinkClass}>
+          <NavLink to="/messages" className={navLinkClass} onClick={onCloseMobile}>
             <MessageSquare className="w-4 h-4 stroke-[2.2]" />
             <span>Messages</span>
           </NavLink>
 
-          <NavLink to="/profile" className={navLinkClass}>
+          <NavLink to="/profile" className={navLinkClass} onClick={onCloseMobile}>
             <User className="w-4 h-4 stroke-[2.2]" />
             <span>My Profile</span>
           </NavLink>
 
           {isStaff && (
-            <NavLink to="/admin" className={navLinkClass}>
+            <NavLink to="/admin" className={navLinkClass} onClick={onCloseMobile}>
               <ShieldAlert className="w-4 h-4 stroke-[2.2] text-[#c65d59]" />
               <span className="text-[#c65d59]">
                 {user?.platformRole === 'moderator' || user?.role === 'moderator'
@@ -133,7 +147,10 @@ export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode }) 
 
         {/* Create Action Button */}
         <button
-          onClick={onOpenCreate}
+          onClick={() => {
+            onCloseMobile();
+            onOpenCreate();
+          }}
           className="w-full mt-6 bg-[#e66c68] hover:bg-[#d55e5a] text-white text-[13px] font-bold py-3 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -212,5 +229,6 @@ export default function LeftSidebar({ onOpenCreate, darkMode, toggleDarkMode }) 
         )}
       </div>
     </aside>
+    </>
   );
 }
